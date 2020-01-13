@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 import torch
 import lm_util
-from cb_unet import UNet, evaluate_binarization_improvement
+from cb_unet import UNet, evaluate_binarization_improvement, render_confusion
 from dagtasets import Dibco
 import lm_util
 import sys
-
+import cv2
+from matplotlib import pyplot as plt
 p={
     "model_path":"/tmp/binarizer.pt",
     "log_freq":10,
     "lr":.1,
     "epochs":10,
     "device":"cuda",
+    "validate_freq":1
 }
 
 p, _ = lm_util.get_arg_switches(p,sys.argv,return_named_tuple=True)
@@ -21,7 +23,7 @@ device=torch.device(p.device)
 trainset = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2013", "2014", "2016", "2017"])
 testset = Dibco(["2018"])
 
-trainloader=torch.utils.data.DataLoader(trainset,shuffle=True)
+trainloader=torch.utils.data.DataLoader(trainset,shuffle=True,batch_size=5)
 valloader=torch.utils.data.DataLoader(testset,shuffle=True,batch_size=1)
 
 try:
@@ -35,10 +37,32 @@ optim = torch.optim.Adam(net.parameters())
 criterion=torch.nn.BCEWithLogitsLoss()
 
 for epoch in range(p.epochs):
+    if epoch % p.validate_freq == 0:
+        fscores=[]
+        baseline_fscores=[]
     for input_img, gt in trainloader:
         optim.zero_grad()
-        input_img, gt = input_img.to(device),gt.to(device)
+        input_img, gt = input_img.to(device), gt.to(device)
         prediction = net(input_img)
         loss = criterion(prediction, gt).sum()
         loss.backward()
         optim.step()
+        if epoch % p.validate_freq == 0:
+            fscore, baseline_fscore=evaluate_binarization_improvement(input_img,prediction,gt)
+            fscores.append(fscore)
+            baseline_fscores.append(fscore)
+            confusion = render_confusion(prediction[0, 1, :, :], gt[0, 1, :, :])
+            cv2.imwrite("/tmp/img.png",confusion)
+            #plt.imshow(confusion)
+            #plt.show()
+    if epoch % p.validate_freq == 0:
+        lines=["{}:\t{},\t{}".format(n,fscores[n],baseline_fscores[n]) for n in range(len(fscores))]
+        lines.append('')
+        lines.append("Total:\t{},\t{}".format(sum(fscores)/len(fscores),sum(baseline_fscores)/len(baseline_fscores)))
+        print("N:\tPerf\tBaseline")
+        print("\n".join(lines))
+
+
+
+
+

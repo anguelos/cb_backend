@@ -2,10 +2,23 @@ import cv2
 import numpy as np
 import torch
 
+def render_confusion(prediction,gt,tp_col=[0,0,0],tn_col=[255,255,255],fp_col=[255,0,0],fn_col=[0,0,255]):
+    prediction=(prediction.detach().cpu().numpy()>0)
+    gt = (gt.detach().cpu().numpy() > 0)
+    res=np.zeros(prediction.shape+(3,))
+    tp = gt & prediction
+    tn = (~gt) & (~prediction)
+    fp = (~gt) & prediction
+    fn = (gt) & (~prediction)
+    res[tp, :] = tp_col
+    res[tn, :] = tn_col
+    res[fp, :] = fp_col
+    res[fn, :] = fn_col
+    return res
 
 def get_otsu_threshold(img):
     if type(img) is torch.Tensor:
-        threshold, _ = cv2.threshold((img * 255).to("cpu").numpy().astype("uint8"), 0, 1.0,
+        threshold, _ = cv2.threshold((img * 255).detach().to("cpu").numpy().astype("uint8"), 0, 1.0,
                                      cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     elif type(img) is np.array and img.dtype==np.uint8:
         threshold, _ = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -16,23 +29,32 @@ def get_otsu_threshold(img):
         raise ValueError("Img should be a 2D numpy or pytorch")
     return threshold
 
-def evaluate_binarization_improvement(input_gray, prediction_gray, gt_img,epsilon=.000001):
+def evaluate_binarization_improvement(input_gray, C,epsilon=.000001):
+    return 0,0
     gt_img = gt_img > 0
-    print("Thr 1")
-    input_bin = input_gray>get_otsu_threshold(input_gray)
-    print("Thr 2")
-    prediction_bin = prediction_gray > get_otsu_threshold(prediction_gray)
-    print("input_precision")
-    input_precision= (input_bin & gt_img).sum() / float(gt_img.sum()+epsilon)
-    print("input_recall")
-    input_recall = (input_bin & gt_img).sum() / float(input_bin.sum()+epsilon)
-    print("input_fscore")
+    #print("Thr 1")
+    input_bin = input_gray < get_otsu_threshold(input_gray)
+    #print("Thr 2")
+    prediction_bin = prediction_gray < get_otsu_threshold(prediction_gray)
+    #print("input_precision")
+    input_precision= (input_bin & gt_img).sum().item() / float(gt_img.sum()+epsilon)
+    #print("input_recall")
+    input_recall = (input_bin & gt_img).sum().item() / float(input_bin.sum()+epsilon)
+    #print("input_fscore")
     input_fscore=2*input_precision*input_recall/(input_precision+input_recall+epsilon)
-    print("input_precision")
-    prediction_precision= (prediction_bin * gt_img).sum() / float(gt_img.sum().float()+epsilon)
-    prediction_recall = (prediction_bin * gt_img).sum() / float(prediction_bin.sum()+epsilon)
+    #print("prediction_precision")
+    prediction_precision= (prediction_bin * gt_img).float().sum().item() / (float(gt_img.sum().float())+epsilon)
+    #print("prediction_recall",(float(prediction_bin.sum())+epsilon))
+    prediction_recall = (prediction_bin * gt_img).float().sum().item() / (float(prediction_bin.sum())+epsilon)
+    #print("prediction_fscore",(prediction_precision+prediction_recall+epsilon))
     prediction_fscore=2*prediction_precision*prediction_recall/(prediction_precision+prediction_recall+epsilon)
-    return prediction_fscore,input_fscore
+    #print("return")
+    print(prediction_fscore, input_fscore)
+    return prediction_fscore, input_fscore
+
+
+def draw_images(prediction_gray, gt_img):
+    pass
 
 def validate(model,validation_loader):
     device=model.get_device()
