@@ -14,7 +14,10 @@ def render_confusion(prediction,gt,tp_col=[0,0,0],tn_col=[255,255,255],fp_col=[2
     res[tn, :] = tn_col
     res[fp, :] = fp_col
     res[fn, :] = fn_col
-    return res
+    precision = (1+tp.sum())/float(1+tp.sum()+fp.sum())
+    recall = (1+tp.sum()) / float(1+tp.sum() + fn.sum())
+    Fscore=(2*precision*recall)/(precision+recall)
+    return res,precision,recall,Fscore
 
 def get_otsu_threshold(img):
     if type(img) is torch.Tensor:

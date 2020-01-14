@@ -6,63 +6,232 @@ from dagtasets import Dibco
 import lm_util
 import sys
 import cv2
+import time
 from matplotlib import pyplot as plt
+
 p={
-    "model_path":"/tmp/binarizer.pt",
     "log_freq":10,
     "lr":.1,
     "epochs":10,
     "device":"cuda",
-    "validate_freq":1
+    "val_device":"cpu",
+    "validate_freq":0,
+    "trainoutputs_freq":5,
+    "batch_size":5,
+    "save_freq":10,
+    "lr":.001,
+    "resume_fname":"binnet_{mode}.pt",
+    "mode":("normal",'One of ["normal","residual","chain","residual_chain"].')
 }
 
 p, _ = lm_util.get_arg_switches(p,sys.argv,return_named_tuple=True)
 
+def save():
+    save_dict=net.state_dict()
+    save_dict["per_epoch_train_error"]=per_epoch_train_error
+    save_dict["per_epoch_validation_error"] = per_epoch_validation_error
+    save_dict["epoch"]=epoch
+    torch.save(save_dict, p.resume_fname)
+
+def resume():
+    try:
+        save_dict=torch.load(p.resume_fname)
+        per_epoch_train_error=save_dict["per_epoch_train_error"]
+        del save_dict["per_epoch_train_error"]
+        per_epoch_validation_error=save_dict["per_epoch_validation_error"]
+        del save_dict["per_epoch_validation_error"]
+        epoch=save_dict["epoch"]
+        del save_dict["epoch"]
+        net.load_state_dict(save_dict)
+        print("Resumed from ",p.resume_fname)
+    except FileNotFoundError as e:
+        print("Failed to resume from ", p.resume_fname)
+
+
+
 device=torch.device(p.device)
 
 trainset = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2013", "2014", "2016", "2017"])
-testset = Dibco(["2018"])
+#trainset = Dibco(["2009_HW"])
+testset = Dibco(["2018"], crop_sz=None)
 
-trainloader=torch.utils.data.DataLoader(trainset,shuffle=True,batch_size=5)
+trainloader=torch.utils.data.DataLoader(trainset,shuffle=True,batch_size=p.batch_size)
 valloader=torch.utils.data.DataLoader(testset,shuffle=True,batch_size=1)
 
-try:
-    net = UNet.load(p.model_path)
-except:
-    net = UNet(n_channels=2, n_classes=2)
+net = UNet(n_channels=2, n_classes=2)
 
 net = net.to(device)
 
-optim = torch.optim.Adam(net.parameters())
+per_epoch_train_errors={}
+per_epoch_validation_errors={}
+epoch=0
+
+
+resume()
+
+optim = torch.optim.Adam(net.parameters(),lr=p.lr)
 criterion=torch.nn.BCEWithLogitsLoss()
 
-for epoch in range(p.epochs):
-    if epoch % p.validate_freq == 0:
-        fscores=[]
-        baseline_fscores=[]
-    for input_img, gt in trainloader:
+def run_epoch(p,loader,net,criterion,optimizer=None,save_images=True):
+    is_validation = not (optimizer is None)
+    if is_validation:
+        isval_str = "Validation"
+        do_grad=lambda: torch.nograd()
+        net.eval()
+        net.to(p.val_device)
+    else:
+        do_grad = lambda: open("/tmp/fake","w")
+        isval_str = "Train"
+        net.train()
+        net.to(p.device)
+    fscores = []
+    precisions = []
+    recalls = []
+    losses = []
+    model_outputs={}
+    t=time.time()
+    with do_grad():
+        for n, (input_img,gt) in enumerate(loader):
+            if is_validation:
+                input_img,gt = input_img.to(p.val_device),gt.to(p.val_device)
+            else:
+                input_img, gt = input_img.to(p.device), gt.to(p.device)
+            coeffs = gt.mean(dim=1).mean(dim=1).mean(dim=1)
+            print("Coeffs:",coeffs)
+            if p.mode == "normal":
+                prediction = net(input_img)
+                loss = criterion(prediction, gt).sum()*coeffs
+            elif p.mode == "residual":
+                prediction = net(input_img) + input_img
+                loss = criterion(prediction, gt).sum()*coeffs
+            elif p.mode == "chain":
+                prediction = net(input_img)
+                loss = criterion(prediction, gt).sum()*coeffs
+                prediction = net(prediction)
+                loss = loss + criterion(prediction, gt).sum()*coeffs
+            elif p.mode == "residual_chain":
+                prediction = net(input_img) + input_img
+                loss = criterion(prediction, gt).sum()*coeffs
+                prediction = net(prediction) + prediction
+                loss = loss + criterion(prediction, gt).sum()*coeffs
+            else:
+                raise ValueError("unknown mode")
+            if is_validation:
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+            confusion,precision,recall,fscore = render_confusion(prediction[0, 1, :, :], gt[0, 1, :, :])
+            fscores.append(fscore)
+            precisions.append(precision)
+            recalls.append(recall)
+            losses.append(loss.item()/gt.view(-1).size())
+            if save_images:
+                cv2.imwrite("/tmp/{}_{}_img_{}.png".format(p.mode,isval_str,n), confusion)
+                model_outputs[n]=prediction.detach().cpu()
+    lines = ["V {}:\t{}".format(n,fscores[n]) for n in range(len(fscores))]
+    lines.append('')
+    lines.append("Epoch {} {} Total:\t{}".format(epoch, isval_str, sum(validation_fscores)/len(validation_fscores)))
+    print("N:\t{} {} Perf {:03f} % computed in {:05f} sec.".format(p.mode,isval_str,100*(sum(validation_fscores)/len(validation_fscores)),time.time()-t))
+    print("\n".join(lines))
+    if save_images:
+        torch.save(validation_outputs,"/tmp/{}_{}_{}_samples.pt".format(p.mode,epoch,isval_str))
+    return sum(validation_fscores) / len(validation_fscores),sum(precisions) / len(precisions), sum(recalls) / len(recalls),sum(losses) / len(losses)
+
+for epoch in range(epoch,p.epochs):
+    if p.save_freq!=0 and epoch % p.save_freq==0:
+        save()
+    if p.validate_freq != 0 and epoch % p.validate_freq == 0:
+        fscore,precision,recall,loss=run_epoch(p, valloader, net, criterion, optimizer=None, save_images=True)
+        per_epoch_validation_errors[epoch]=fscore,precision,recall,loss
+    save_outputs=p.trainoutputs_freq!=0 and epoch % p.trainoutputs_freq==0
+    fscore, precision, recall, loss=run_epoch(p, trainloader, net, criterion, optimizer=optim, save_images=save_outputs)
+    per_epoch_train_errors[epoch]=fscore, precision, recall, loss
+
+sys.exit()
+
+
+for epoch in range(epoch,p.epochs):
+    if p.save_freq!=0 and epoch % p.save_freq==0:
+        save()
+    if p.validate_freq != 0 and epoch % p.validate_freq == 0:
+        validation_fscores=[]
+        validation_outputs={}
+    if epoch % p.trainerror_freq == 0:
+        train_fscores=[]
+    for n,(input_img, gt) in enumerate(trainloader):
         optim.zero_grad()
+        coeffs = gt.sum(dim=1).sum(dim=1).sum(dim=1)
         input_img, gt = input_img.to(device), gt.to(device)
-        prediction = net(input_img)
-        loss = criterion(prediction, gt).sum()
+        if p.mode == "normal":
+            prediction = net(input_img)
+            loss = criterion(prediction, gt).sum()*coeffs
+        elif p.mode == "residual":
+            prediction = net(input_img)+input_img
+            loss = criterion(prediction, gt).sum()*coeffs
+        elif p.mode == "chain":
+            prediction = net(input_img)
+            loss = criterion(prediction, gt).sum()*coeffs
+            prediction = net(prediction)
+            loss = loss+criterion(prediction, gt).sum()*coeffs
+        elif p.mode == "residual_chain":
+            prediction = net(input_img)+input_img
+            loss = criterion(prediction, gt).sum()*coeffs
+            prediction = net(prediction)+prediction
+            loss = loss+criterion(prediction, gt).sum()*coeffs
+        else:
+            raise ValueError("unknown mode")
         loss.backward()
         optim.step()
-        if epoch % p.validate_freq == 0:
-            fscore, baseline_fscore=evaluate_binarization_improvement(input_img,prediction,gt)
-            fscores.append(fscore)
-            baseline_fscores.append(fscore)
-            confusion = render_confusion(prediction[0, 1, :, :], gt[0, 1, :, :])
-            cv2.imwrite("/tmp/img.png",confusion)
-            #plt.imshow(confusion)
-            #plt.show()
-    if epoch % p.validate_freq == 0:
-        lines=["{}:\t{},\t{}".format(n,fscores[n],baseline_fscores[n]) for n in range(len(fscores))]
+        if epoch % p.trainerror_freq == 0:
+            confusion,precision,recall,fscore = render_confusion(prediction[0, 1, :, :], gt[0, 1, :, :])
+            train_fscores.append(fscore)
+            cv2.imwrite("/tmp/{}_train_img_{}.png".format(p.mode,n), confusion)
+    if p.validate_freq != 0 and epoch % p.validate_freq == 0:
+        net.eval()
+        net.to(p.val_device)
+        with torch.no_grad():
+            for n, (input_img,gt) in enumerate(valloader):
+                input_img,gt = input_img.to(p.val_device),gt.to(p.val_device)
+                if p.mode == "normal":
+                    prediction = net(input_img)
+                    #loss = criterion(prediction, gt).sum()
+                elif p.mode == "residual":
+                    prediction = net(input_img) + input_img
+                    #loss = criterion(prediction, gt).sum()
+                elif p.mode == "chain":
+                    prediction = net(input_img)
+                    #loss = criterion(prediction, gt).sum()
+                    prediction = net(prediction)
+                    #loss = loss + criterion(prediction, gt).sum()
+                elif p.mode == "residual_chain":
+                    prediction = net(input_img) + input_img
+                    #loss = criterion(prediction, gt).sum()
+                    prediction = net(prediction) + prediction
+                    #loss = loss + criterion(prediction, gt).sum()
+                else:
+                    raise ValueError("unknown mode")
+                confusion,precision,recall,fscore = render_confusion(prediction[0, 1, :, :], gt[0, 1, :, :])
+                validation_fscores.append(fscore)
+                cv2.imwrite("/tmp/{}_val_img_{}.png".format(p.mode,n), confusion)
+                validation_outputs[n]=prediction
+        net.to(p.val_device)
+        net.train()
+
+    if p.validate_freq != 0 and epoch % p.validate_freq == 0:
+        lines = ["V {}:\t{}".format(n,validation_fscores[n]) for n in range(len(validation_fscores))]
         lines.append('')
-        lines.append("Total:\t{},\t{}".format(sum(fscores)/len(fscores),sum(baseline_fscores)/len(baseline_fscores)))
-        print("N:\tPerf\tBaseline")
+        lines.append("Epoch {} Validation Total:\t{}".format(epoch, sum(validation_fscores)/len(validation_fscores)))
+        per_epoch_validation_error[epoch]=sum(validation_fscores)/len(validation_fscores)
+        print("N:\tValidation Perf")
         print("\n".join(lines))
+        torch.save(validation_outputs,"/tmp/{}_{}_validation.pt".format(p.mode,epoch))
+        per_epoch_train_error[epoch] = sum(train_fscores) / len(train_fscores)
 
-
-
-
-
+    if epoch % p.trainerror_freq == 0:
+        lines=["T {}:\t{}".format(n,train_fscores[n]) for n in range(len(train_fscores))]
+        lines.append('')
+        lines.append("Epoch {} Train Total:\t{}".format(epoch, sum(train_fscores)/len(train_fscores)))
+        per_epoch_train_error[epoch]=sum(train_fscores)/len(train_fscores)
+        print("N:\tPerf")
+        print("\n".join(lines))
+        per_epoch_train_error[epoch] = sum(train_fscores) / len(train_fscores)
