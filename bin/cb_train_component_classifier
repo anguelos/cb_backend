@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+import torch
+import lm_util
+from cb_unet import UNet, evaluate_binarization_improvement, render_confusion, get_otsu_threshold,render_optimal_confusion
+from cb_unet import get_component_ds, get_components, erase_components, get_component_fscore
+from dagtasets import Dibco
+import lm_util
+import sys
+import cv2
+import time
+from matplotlib import pyplot as plt
+
+p={
+    "log_freq":10,
+    "lr":.001,
+    "epochs":10,
+    "device":"cuda",
+    "val_device":"{device}",
+    "validate_freq":5,
+    "trainoutputs_freq":5,
+    "batch_size":5,
+    "save_freq":10,
+    "lr":.001,
+    "mask_gt":1,
+    "resume_fname":"binnet_{mode}.pt",
+    "mode":("normal",'One of ["normal","residual","chain","residual_chain"].')
+}
+
+p, _ = lm_util.get_arg_switches(p,sys.argv,return_named_tuple=True)
+
+
+def resume(net):
+    try:
+        save_dict=torch.load(p.resume_fname)
+        per_epoch_train_errors=save_dict["per_epoch_train_errors"]
+        del save_dict["per_epoch_train_errors"]
+        per_epoch_validation_errors=save_dict["per_epoch_validation_errors"]
+        del save_dict["per_epoch_validation_errors"]
+        start_epoch=save_dict["epoch"]
+        del save_dict["epoch"]
+        net.load_state_dict(save_dict)
+        print("Resumed from ",p.resume_fname)
+        return per_epoch_train_errors,per_epoch_validation_errors,start_epoch,net
+    except FileNotFoundError as e:
+        print("Failed to resume from ", p.resume_fname)
+        return {},{},0, net
+
+device=torch.device(p.device)
+
+#trainset = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2013", "2014", "2016", "2017"], mask_gt=False,train=False)
+#trainset = Dibco(["2009_HW"])
+#ds = Dibco(["2018"], train=False)
+ds = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2013", "2014", "2016", "2017"], mask_gt=False,train=False)
+
+net = UNet(n_channels=2, n_classes=2)
+
+per_epoch_train_errors,per_epoch_validation_errors,start_epoch,net=resume(net)
+
+ds=get_component_ds(trainset,net,device)
+print(len(ds))
