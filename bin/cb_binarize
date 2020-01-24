@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+import torch
+import lm_util
+from cb_unet import UNet, evaluate_binarization_improvement, render_confusion, get_otsu_threshold,render_optimal_confusion
+from dagtasets import Dibco
+import lm_util
+import sys
+import cv2
+import time
+import glob
+from matplotlib import pyplot as plt
+import torchvision
+from PIL import Image
+import os
+import gc
+p={
+    "device":"cuda",
+    "val_device":"{device}",
+    "mask_gt":1,
+    "resume_fname":"binnet_{mode}.pt",
+    "mode":("normal",'One of ["normal","residual","chain","residual_chain"].'),
+    "input_pattern":"./sample.png"
+}
+
+p, _ = lm_util.get_arg_switches(p,sys.argv,return_named_tuple=True)
+
+dibco_transform_gray_inference = torchvision.transforms.Compose([
+    torchvision.transforms.Grayscale(),
+    torchvision.transforms.ToTensor(),
+    lambda x: torch.cat([x, 1 - x])
+])
+
+
+def resume(net):
+    try:
+        save_dict=torch.load(p.resume_fname)
+        per_epoch_train_errors=save_dict["per_epoch_train_errors"]
+        del save_dict["per_epoch_train_errors"]
+        per_epoch_validation_errors=save_dict["per_epoch_validation_errors"]
+        del save_dict["per_epoch_validation_errors"]
+        start_epoch=save_dict["epoch"]
+        del save_dict["epoch"]
+        net.load_state_dict(save_dict)
+        print("Resumed from ",p.resume_fname)
+        return per_epoch_train_errors,per_epoch_validation_errors,start_epoch,net
+    except FileNotFoundError as e:
+        print("Failed to resume from ", p.resume_fname)
+        return {},{},0, net
+
+def run_image(p,device,input_img,net):
+    net.to(device)
+    t=time.time()
+    input_img = input_img.to(device)
+    input_img = input_img.unsqueeze(dim=0)
+    print(input_img.size())
+    with torch.no_grad():
+        if p.mode == "normal":
+            prediction = net(input_img)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            prediction = torch.cat([prediction,1-prediction],dim=1).detach()
+
+        elif p.mode == "residual":
+            prediction = net(input_img) + torch.log(input_img)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            prediction = torch.cat([prediction,1-prediction],dim=1).detach()
+
+        elif p.mode == "chain":
+            prediction = net(input_img)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            prediction = torch.cat([prediction[:,:1,:,:],1-prediction[:,:1,:,:]],dim=1)
+
+            prediction = net(prediction)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            prediction = torch.cat([prediction,1-prediction],dim=1).detach()
+
+        elif p.mode == "residual_chain":
+            prediction = net(input_img) + torch.log(input_img)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            prediction = torch.cat([prediction[:,:1,:,:],1-prediction[:,:1,:,:]],dim=1)
+            prediction = net(prediction) + torch.log(prediction)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            prediction = torch.cat([prediction,1-prediction],dim=1).detach()
+        else:
+            raise ValueError("unknown mode")
+        return prediction[0,:1,:,:]
+
+
+device=torch.device(p.device)
+
+
+for fname in glob.glob(p.input_pattern):
+    print("\nReloading Model")
+    net = UNet(n_channels=2, n_classes=2)
+    per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net)
+    #child_pid = os.fork()
+    #if child_pid == 0:
+    print(fname)
+    input_img = Image.open(fname)
+    input_img = dibco_transform_gray_inference(input_img)
+    print(input_img.size())
+    prediction = run_image(p, device, input_img, net)
+    print(prediction.size())
+    torchvision.utils.save_image(prediction, fname + ".bin.png")
+    print("Saved ", fname + ".bin.png")
+    gc.collect()
+    #else:
+    #    print("Waiting..... for ",child_pid)
+    #    os.waitpid(child_pid,0)
+    #    print("Child came! ", child_pid)

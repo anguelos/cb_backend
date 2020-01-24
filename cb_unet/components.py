@@ -4,7 +4,7 @@ from collections import namedtuple
 import torch
 import tqdm
 
-
+from matplotlib import pyplot as plt
 
 def connected_component_labeling(bin_img):
     integrable = torch.zeros([bin_img.size(0),bin_img.size(1)+1], dtype=torch.int)
@@ -52,6 +52,7 @@ def get_component_ds(dibco_ds,unet,device):
             img_density = bin_img.sum() / img_surface
 
             components=get_components(bin_img)
+            #plot_components(components);plt.show()
             fscores,precisions,recalls = get_component_fscore(components,gt)
 
             total_fscores, total_precisions, total_recalls = fscores[0], precisions[0], recalls[0]
@@ -88,10 +89,12 @@ def get_component_ds(dibco_ds,unet,device):
                         relative_right,relative_bottom,relative_widths,relative_heights,relative_surfaces,
                         relative_densities]
             features=np.array(features)
+            print("Features Size:",features.shape)
             for n in range(features.shape[0]):
                 sample_features = torch.Tensor(features[n])
                 sample_outputs = torch.Tensor([delta_fscores[n]>0,fscores[n],precisions[n],recalls[n],delta_fscores[n],delta_precisions[n],delta_recalls[n]])
             result_ds.append((sample_features, sample_outputs))
+
     return result_ds
 
 
@@ -105,6 +108,7 @@ def get_components(bin_img, device='cuda', fg_prob=None):
         fg_prob = torch.ones(bin_img.shape)
     fg_logits=torch.log(fg_prob)
     nb_labels, labels = cv2.connectedComponents(bin_img.astype("uint8") * 255)
+    nb_labels = labels.max()+1 # occasionally nb_lables is wrong
     #from matplotlib import pyplot as plt;plt.imshow(labels);plt.colorbar();plt.show()
     labels = torch.Tensor(labels).int()
     height, width = bin_img.shape
@@ -123,7 +127,7 @@ def get_components(bin_img, device='cuda', fg_prob=None):
     #comp_id = (sorted_yfield / width).astype(np.int32) as good
     change_idx=torch.zeros(nb_labels+1,dtype=torch.int32).view(-1)
     change_idx[1:-1]=(torch.nonzero(comp_id[1:] - comp_id[:-1]).view(-1))+1
-    change_idx[-1]=comp_id.size(0)-1
+    change_idx[-1]=comp_id.size(0)#-1
     change_idx=change_idx.view(-1)
     component_start=[change_idx[n].item() for n in range(nb_labels)]
     component_end = [change_idx[n].item() for n in range(1,nb_labels+1)]
