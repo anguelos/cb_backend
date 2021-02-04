@@ -3,7 +3,7 @@ import torch
 import fastai
 import fastai.vision
 from unet import UNet
-from unet2 import  R2AttU_Net, AttU_Net, R2U_Net, U_Net
+from unet2 import R2AttU_Net, AttU_Net, R2U_Net, U_Net
 import iunets
 from PIL import Image, ImageOps
 
@@ -176,9 +176,9 @@ def create_net(arch,n_channels,n_classes, bn_momentum,rnd_pad, pretrained=True):
         class Network(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.in2u=torch.nn.Conv2d(n_channels,32,1)
-                self.unet=iunets.iUNet(in_channels=32,architecture=[2,3,3,4,4,5],dim=2)
-                self.u2out=torch.nn.Conv2d(32,n_classes ,1)
+                self.in2u=torch.nn.Conv2d(n_channels, 32, 1)
+                self.unet=iunets.iUNet(in_channels=32, architecture=[2,3,3,4,4,5],dim=2)
+                self.u2out=torch.nn.Conv2d(32, n_classes, 1)
 
             def forward(self, x):
                 x=self.in2u(x)

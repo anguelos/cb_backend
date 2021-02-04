@@ -12,10 +12,8 @@ import torch
 import fargv
 import torchvision
 
-from rr_ds import RR2013Ch2, augment_RRDS_batch
-from dibco import Dibco, dibco_transform_gt, dibco_transform_gt, dibco_transform_color_input
+from cbbin import *
 
-from util import render_confusion, save, resume,create_net
 import cv2
 import time
 import tqdm
@@ -199,28 +197,28 @@ elif p.dataset == "self_eval_2013":
 
 elif p.dataset in ["dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2017", "dibco2018", "dibco2019"]:
     if p.dataset == "dibco2010":
-        trainset = Dibco.Dibco2009()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2010()
     elif p.dataset == "dibco2011":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2011()
     elif p.dataset == "dibco2012":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2012()
     elif p.dataset == "dibco2013":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2013()
     elif p.dataset == "dibco2014":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2014()
     elif p.dataset == "dibco2016":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2017() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2016()
     elif p.dataset == "dibco2017":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2018() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2017()
     elif p.dataset == "dibco2018":
-        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017()
+        trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2019()
         validationset = Dibco.Dibco2018()
     elif p.dataset == "dibco2019":
         trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018()

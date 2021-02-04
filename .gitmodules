@@ -1,0 +1,3 @@
+[submodule "thirdparty/iunets"]
+	path = thirdparty/iunets
+	url = git@github.com:cetmann/iunets.git
