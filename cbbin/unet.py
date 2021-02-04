@@ -1,24 +1,55 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#import cb_unet.binarization_dataset as dataset
+
 
 class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels,preserve=False):
         super().__init__()
-        self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
+        self.conv2out=nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+        self.double_conv1 = nn.Sequential(
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
+            nn.InstanceNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=0),
+            #nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
+            #nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels),
         )
+        self.double_conv2 = nn.Sequential(
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
+            nn.InstanceNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=0),
+            #nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
+            #nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels),
+        )
+        self.preserve=preserve
 
     def forward(self, x):
-        return self.double_conv(x)
+        if self.preserve:
+            x = self.conv2out(x)
+            #print(self.double_conv1(x).size(),x.size())
+            new_x = x.clone()
+            new_x[:,:,1:-1,1:-1] = x[:,:,1:-1,1:-1] + self.double_conv1(x)
+            x=new_x
+            new_x = x.clone()
+            new_x[:,:,1:-1,1:-1] = x[:,:,1:-1,1:-1] + self.double_conv2(x)
+            return x
+        else:
+            x = self.conv2out(x)
+            #print(self.double_conv1(x).size(),x.size())
+            x = x[:,:,1:-1,1:-1] + self.double_conv1(x)
+            x = x[:,:,1:-1,1:-1] + self.double_conv2(x)
+            return x
 
 
 class Down(nn.Module):
@@ -47,7 +78,7 @@ class Up(nn.Module):
         else:
             self.up = nn.ConvTranspose2d(in_channels // 2, in_channels // 2, kernel_size=2, stride=2)
 
-        self.conv = DoubleConv(in_channels, out_channels)
+        self.conv = DoubleConv(in_channels, out_channels,preserve=True)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -79,7 +110,7 @@ class UNet(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        self.inc = DoubleConv(n_channels, 64)
+        self.inc = DoubleConv(n_channels, 64,preserve=True)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
