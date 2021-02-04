@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import fastai
 import fastai.vision
-from unet import UNet
-from unet2 import R2AttU_Net, AttU_Net, R2U_Net, U_Net
+from .unet import UNet
+from .unet2 import R2AttU_Net, AttU_Net, R2U_Net, U_Net
 import iunets
 from PIL import Image, ImageOps
 

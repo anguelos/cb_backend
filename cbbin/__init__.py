@@ -1,4 +1,4 @@
-from .util import evaluate_binarization_improvement, render_confusion, get_otsu_threshold,render_optimal_confusion
+#from .util import evaluate_binarization_improvement, render_confusion, get_otsu_threshold,render_optimal_confusion
 from .components import get_component_ds, erase_components, get_components, get_component_fscore,   plot_components
 
 from .rr_ds import RR2013Ch2, augment_RRDS_batch
