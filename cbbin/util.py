@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import types
 import PIL
 
+
 class SingleImageDataset(object):
     def __init__(self, image_filename_list, cache_images=True):
         self.image_filenames = image_filename_list
