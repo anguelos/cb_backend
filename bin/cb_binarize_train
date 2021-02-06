@@ -195,7 +195,7 @@ elif p.dataset in ["dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco201
 trainloader = torch.utils.data.DataLoader(trainset, shuffle=True, batch_size=p.batch_size, num_workers=p.io_threads,drop_last=True)
 valloader=torch.utils.data.DataLoader(validationset, shuffle=False, batch_size=1)
 
-net = create_net(p.arch, p.n_channels, p.n_classes, .99, p.rnd_pad, p.pretrained)
+net = create_net(p.arch, p.n_channels, p.n_classes, .99, False, False)
 param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net, p.resume_fname, p.device)
 
 
