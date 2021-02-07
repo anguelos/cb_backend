@@ -98,10 +98,7 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-            #bin_prediction = prediction[0,0,:,:]<get_otsu_threshold(prediction[0,0,:,:])
-            #confusion,precision,recall,fscore = render_confusion(bin_prediction, gt[0, 0, :, :]<.5)
             confusion, precision, recall, fscore = render_confusion(prediction[0,0,:,:]<prediction[0,1,:,:], gt[0, 0, :, :] < .5, mask[0,0,:,:] > .5)
-            #confusion,precision,recall,fscore = render_optimal_confusion(prediction[0,0,:,:], gt[0, 0, :, :]<.5)
 
             fscores.append(fscore)
             precisions.append(precision)
@@ -109,10 +106,7 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
             losses.append(loss.item()/gt.view(-1).size()[0])
             if save_images:
                 Image.fromarray(np.uint8(confusion*255)).save(f"/tmp/{isval_str}_conf_{n}.png")
-                #model_outputs[n] = prediction.detach().cpu()
-                print("prediction: ", prediction.size())
                 prediction = torch.softmax(prediction[0, :, :, :], dim=0)
-                print("prediction: ", prediction.size())
                 Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255).astype('uint8')).save(f"/tmp/{isval_str}_out_{n}.png")
             if save_input_images:
                 torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/input_{isval_str}_img_{n}.png")
@@ -122,8 +116,6 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
     lines.append('')
     print("N:\t{} % computed in {:05f} sec.".format(isval_str, time.time()-t))
     print("\n".join(lines))
-    #if save_images:
-    #    torch.save(model_outputs,"/tmp/{}_samples.pt".format(isval_str))
     return sum(fscores) / len(fscores),sum(precisions) / len(precisions), sum(recalls) / len(recalls),sum(losses) / len(losses)
 
 
@@ -182,20 +174,6 @@ trainset = tormentor.AugmentedDs(trainset, augmentation_factory=train_augmentati
                                           computation_device=p.tormentor_device, add_mask=True)
 validationset = tormentor.AugmentedDs(validationset, augmentation_factory=val_augmentation_factory,
                                           computation_device=p.tormentor_device, add_mask=True)
-
-    #trainset = tormentor.AugmentedDs(trainset, augmentation_factory=train_resizer, computation_device="cpu", add_mask=True)
-    #validationset = tormentor.AugmentedDs(validationset, augmentation_factory=val_resizer, computation_device="cpu", add_mask=True)
-    #validationset = [sample+(torch.ones_like(sample[1]),) for sample in validationset]
-    #trainloader=torch.utils.data.DataLoader(trainset, shuffle=True, batch_size=p.batch_size, num_workers= p.io_threads, drop_last=True)
-    #valloader=torch.utils.data.DataLoader(validationset, shuffle=False, batch_size=1)
-    #if p.train_augmentation != "":
-    #    augmentation_factory = tormentor.AugmentationFactory(eval(p.train_augmentation))
-    #    trainloader = tormentor.AugmentedDataLoader(trainloader, augmentation_factory, torch.device(p.tormentor_device), augment_RRDS_batch)
-    #if p.val_augmentation != "":
-    #    augmentation_factory = tormentor.AugmentationFactory(eval(p.val_augmentation))
-    #    valloader = tormentor.AugmentedDataLoader(valloader, augmentation_factory, torch.device(p.tormentor_device), augment_RRDS_batch)
-#else:
-#    raise ValueError()
 
 trainloader = torch.utils.data.DataLoader(trainset, shuffle=True, batch_size=p.batch_size, num_workers=p.io_threads,drop_last=True)
 
