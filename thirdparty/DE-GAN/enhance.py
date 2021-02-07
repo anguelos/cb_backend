@@ -192,9 +192,6 @@ predicted_image=merge_image2(predicted_image,h,w)
 predicted_image=predicted_image[:test_image.shape[0],:test_image.shape[1]]
 predicted_image=predicted_image.reshape(predicted_image.shape[0],predicted_image.shape[1])
 #     predicted_image = (predicted_image[:,:])*255
-plt.imshow(predicted_image)
-plt.colorbar()
-plt.show()
 if task == 'binarize':
     bin_thresh = 0.95
     predicted_image = (predicted_image[:,:]>bin_thresh)*1

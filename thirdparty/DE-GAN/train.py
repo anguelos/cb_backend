@@ -17,7 +17,7 @@ from tqdm import tqdm
 import random
 import os.path
 import imageio
-import sys
+
 
 
 def getPatches(watermarked_image,clean_image,mystride):
@@ -138,16 +138,14 @@ def build_discriminator(input_size = input_size):
 def train_gan(generator,discriminator, ep_start=1, epochs=1, batch_size=128):
     
     list_deg_images= os.listdir('data/A/')
-    list_clean_images= os.listdir('data/B/')
-    print("Images: ",list_deg_images)
-    print("Images: ",list_clean_images)
+    list_clean_images= os.listdir('data/A/')
     
     list_deg_images.sort()
     list_clean_images.sort()
 
     adam = get_optimizer()
     gan = get_gan_network(discriminator, generator, adam)
-    os.system("mkdir -p Results/curent_weights/")
+    
     for e in range(ep_start, epochs+1):
         print ('\n Epoch:' ,e)
         
@@ -174,9 +172,11 @@ def train_gan(generator,discriminator, ep_start=1, epochs=1, batch_size=128):
 
             batch_count = wat_batch.shape[0] // batch_size
 
+
+
+
             for b in (range(batch_count)):
                 seed= range(b*batch_size, (b*batch_size) + batch_size)
-                
                 b_wat_batch = wat_batch[seed].reshape(batch_size,256,256,1)
                 b_gt_batch = gt_batch[seed].reshape(batch_size,256,256,1)
 
@@ -193,13 +193,10 @@ def train_gan(generator,discriminator, ep_start=1, epochs=1, batch_size=128):
 
                 discriminator.trainable = False
                 gan.train_on_batch([b_wat_batch], [valid, b_gt_batch])
-            if e % 30 == 1:
-                generator.save_weights(f"weights/binarization_generator_weights_{e:04}.h5")
-                discriminator.save_weights(f"weights/binarization_discriminator_weights_{e:04}.h5")
 
-        if (e == 1 or e % 2 == 0):
-            evaluate(generator,discriminator,e)
-    return generator,discriminator
+        # if (e == 1 or e % 2 == 0):
+        #     evaluate(generator,discriminator,e)
+    # return generator,discriminator
 
 def get_gan_network(discriminator, generator, optimizer,input_size = input_size):
     discriminator.trainable = False
@@ -277,24 +274,24 @@ def predic(generator, epoch):
 ### if you want to evaluate each epoch:
 
 
-def  evaluate(generator,discriminator,epoch):
-    return 
-    predic(generator,epoch)
-    avg_psnr=0
-    qo=0
+# def  evaluate(generator,discriminator,epoch):
+#     predic(generator,epoch)
+#     avg_psnr=0
+#     qo=0
 
-    for i in range (0,31):
+#     for i in range (0,31):
         
-        test_image= plt.imread('CLEAN/VALIDATION/GT/'+ str(i+1) + '.png')
+#         test_image= plt.imread('CLEAN/VALIDATION/GT/'+ str(i+1) + '.png')
 
-        predicted_image= plt.imread('Results/epoch'+str(epoch)+'/predicted'+ str(i+1) + '.png')
-        avg_psnr= avg_psnr + psnr(test_image,predicted_image)
-        qo=qo+1
-    avg_psnr=avg_psnr/qo
-    print('psnr= ',avg_psnr)
-    os.system('mkdir -p Results/epoch'+str(epoch)+'/weights')
-    discriminator.save_weights("Results/epoch"+str(epoch)+"/weights/discriminator_weights.h5")
-    generator.save_weights("Results/epoch"+str(epoch)+"/weights/generator_weights.h5")
+#         predicted_image= plt.imread('Results/epoch'+str(epoch)+'/predicted'+ str(i+1) + '.png')
+#         avg_psnr= avg_psnr + psnr(test_image,predicted_image)
+#         qo=qo+1
+#     avg_psnr=avg_psnr/qo
+#     print('psnr= ',avg_psnr)
+#     if not os.path.exists('Results/epoch'+str(epoch)+'/weights'):
+#         os.makedirs('Results/epoch'+str(epoch)+'/weights')
+#     discriminator.save_weights("Results/epoch"+str(epoch)+"/weights/discriminator_weights.h5")
+#     generator.save_weights("Results/epoch"+str(epoch)+"/weights/generator_weights.h5")
 
 
 ##################################
@@ -303,9 +300,7 @@ epo = 1
 
 generator = unet()
 discriminator = build_discriminator()
-if len(sys.argv)==3:
-    generator.load_weights(sys.argv[1])
-    discriminator.load_weights(sys.argv[2])
+
 
 ### to  load pretrained models  ################"" 
 # epo = 41
@@ -316,4 +311,4 @@ if len(sys.argv)==3:
 
 ###############################################
 
-train_gan(generator,discriminator, ep_start =epo, epochs=1000, batch_size=4)
+train_gan(generator,discriminator, ep_start =epo, epochs=80, batch_size=4)
