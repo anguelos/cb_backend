@@ -61,7 +61,7 @@ p={
     "crop_loss": 0,
     "pretrained": True,
     "dice_window":-1,
-    "dice_lcosh":-1
+    "dice_lcosh":False
     #"bn_momentum": (.1, "[0.-1.] negative for None this changes the batchnormalisation momentum parameter.")
 }
 param_dict, _ = fargv.fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
