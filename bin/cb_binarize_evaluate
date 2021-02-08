@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+
+import torch
+from fargv import fargv
+import sys
+import PIL
+import cbbin
+
+p={
+    "n_channels": 3,
+    "n_classes": 2,
+    "save_images": False,
+    "save_input_images": False,
+    "self_pattern": "*png",
+    "arch": [("dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet","runet"),"Model Archtecture"],
+    "rrds_root": "/home/anguelos/data/rr/focused_segmentation/zips",
+    "dataset": [("rrds", "self_eval_2013", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2017", "dibco2018", "dibco2019"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
+    "val_augmentation": "",
+    "train_augmentation": "(RandomPlasmaLinearColor & RandomWrap.custom(roughness=Uniform(value_range=(0.1, 0.7)), intensity=Uniform(value_range=(0.18, 0.62))) & RandomPlasmaShadow.custom(roughness=Uniform(value_range=(0.334, 0.72)), shade_intencity=Uniform(value_range=(-0.32, 0.0)), shade_quantity=Uniform(value_range=(0.0, 0.44))) & RandomPerspective.custom(x_offset=Uniform(value_range=(0.75, 1.0)), y_offset=Uniform(value_range=(0.75, 1.0))) & RandomPlasmaBrightness.custom(roughness=Uniform(value_range=(0.1, 0.4)),intencity=Uniform(value_range=(0.322, 0.9))) )",
+    "optimiser":[("adam", "sgd"),"The optimiser used for training"],
+    "loss": [("dice", "bce"), "The optimiser used for training"],
+    "io_threads": 1,
+    "log_freq": 10,
+    "lr": .001,
+    "epochs": 10,
+    "tormentor_device": "cpu",
+    "device": "cuda",
+    "val_device": "{device}",
+    "validate_freq": 5,
+    "trainoutputs_freq": 5,
+    "archive_nets": False,
+    "batch_size": 1,
+    "save_freq": 10,
+    "mask_gt": 1,
+    "resume_fname": "./models/{arch}.pt",
+    "patch_width": 512,
+    "patch_height": 512,
+    "val_patch_width": -1,
+    "val_patch_height": -1,
+    #"rnd_pad":False,
+    "crop_loss": 0,
+    "pretrained": True,
+    #"bn_momentum": (.1, "[0.-1.] negative for None this changes the batchnormalisation momentum parameter.")
+}
+
+param_dict, _ = fargv.fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
+p, _ = fargv.fargv(p, return_named_tuple=True)
+device = torch.device(p.device)
