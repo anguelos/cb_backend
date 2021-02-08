@@ -38,7 +38,6 @@ p={
     "val_augmentation": "",
     "train_augmentation": "(RandomPlasmaLinearColor & RandomWrap.custom(roughness=Uniform(value_range=(0.1, 0.7)), intensity=Uniform(value_range=(0.18, 0.62))) & RandomPlasmaShadow.custom(roughness=Uniform(value_range=(0.334, 0.72)), shade_intencity=Uniform(value_range=(-0.32, 0.0)), shade_quantity=Uniform(value_range=(0.0, 0.44))) & RandomPerspective.custom(x_offset=Uniform(value_range=(0.75, 1.0)), y_offset=Uniform(value_range=(0.75, 1.0))) & RandomPlasmaBrightness.custom(roughness=Uniform(value_range=(0.1, 0.4)),intencity=Uniform(value_range=(0.322, 0.9))) )",
     "optimiser":[("adam", "sgd"),"The optimiser used for training"],
-    "loss": [("dice", "bce"), "The optimiser used for training"],
     "io_threads": 1,
     "log_freq": 10,
     "lr": .001,
@@ -50,7 +49,7 @@ p={
     "trainoutputs_freq": 5,
     "archive_nets": False,
     "batch_size": 1,
-    "save_freq": 10,
+    "save_freq": 1,
     "mask_gt": 1,
     "resume_fname": "./models/{arch}.pt",
     "patch_width": 512,
@@ -118,14 +117,13 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
             recalls.append(recall)
             losses.append(loss.item()/gt.view(-1).size()[0])
             if save_images:
-                print("Conf:",confusion.shape, confusion.min(),confusion.max())
                 conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
                 conf_img.save(f"/tmp/conf_{isval_str}_{n}.png")
                 prediction = torch.softmax(prediction[0, :, :, :], dim=0)
                 Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/output_{isval_str}_{n}.png")
                 Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/mask_{isval_str}_{n}.png")
                 Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/gt_{isval_str}_{n}.png")
-                print(coeffs.shape,coeffs.min(),coeffs.max())
+
                 Image.fromarray((coeffs[0, 0, :, :].detach().cpu().numpy() * 255).astype("uint8")).convert('RGB').save(
                     f"/tmp/coeff_{isval_str}_{n}.png")
             if save_input_images:
