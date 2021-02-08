@@ -11,26 +11,69 @@ import torch
 import torch.nn.functional as F
 import types
 import PIL
+from .dibco import dibco_transform_color_input, dibco_transform_gt
 
+
+class Discriminator(torch.nn.Module):
+    def __init__(self, ngpu, ndf = 64, nc =1):
+        super(Discriminator, self).__init__()
+        self.ngpu = ngpu
+        self.main = torch.nn.Sequential(
+            # input is (nc) x 64 x 64
+            torch.nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            torch.nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf) x 32 x 32
+            torch.nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            torch.nn.BatchNorm2d(ndf * 2),
+            torch.nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*2) x 16 x 16
+            torch.nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+            torch.nn.BatchNorm2d(ndf * 4),
+            torch.nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*4) x 8 x 8
+            torch.nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            torch.nn.BatchNorm2d(ndf * 8),
+            torch.nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
+            torch.nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, input):
+        return self.main(input)
 
 class SingleImageDataset(object):
-    def __init__(self, image_filename_list, cache_images=True):
+    def __init__(self, image_filename_list, transform=dibco_transform_color_input, gt_transform=dibco_transform_gt,  cache_images=False, add_mask=0):
         self.image_filenames = image_filename_list
         self.cache_images = cache_images
+        self.transform = transform
+        self.gt_transform = gt_transform
+        self.add_mask = add_mask
+
         if self.cache_images:
             self.cache=[]
             for filename in self.image_filenames:
                 self.cache.append(PIL.Image.open(filename))
+        else:
+            self.last_img_idx = -1
 
     def __getitem__(self, item):
         if self.cache_images:
-            return self.cache[item]
+            res = self.cache[item]
         elif self.last_img_idx == item:
-            return self.last_img
+            res = self.last_img
         else:
             img = PIL.Image.open(self.image_filenames[item])
             self.last_img = img
-            return self.last_img
+            res = self.last_img
+        res = self.transform(res), self.gt_transform(res)
+        if self.add_mask:
+            res=res+(torch.ones_like(res[0][:1,:,:]),)
+        print("Single Image:",[r.size() for r in res])
+        return res
+
+    def __len__(self):
+        return len(self.image_filenames)
 
 
 class TiledDataset(object):
@@ -117,35 +160,6 @@ class TiledDataset(object):
 
 
 
-def modified_forward(self, input_x):
-    if self.padding[0] > 0 or self.padding[1] > 0:
-        batch_size, n_channels, height, width = input_x.size()
-        x2d = input_x.view([batch_size * n_channels, height * width])
-        mean = x2d.mean(dim=1).view([batch_size, n_channels, 1, 1])
-        std = x2d.std(dim=1).view([batch_size, n_channels, 1, 1]) / (2*height+2*width)
-        n_pad_left = self.padding[0]
-        n_pad_top = self.padding[1]
-        n_pad_right = self.padding[0]
-        n_pad_bottom = self.padding[1]
-        pad_left = torch.normal(mean.repeat((1,1, height, n_pad_left)), std.repeat((1, 1, height, n_pad_left)))
-        pad_right = torch.normal(mean.repeat(1,1, height, n_pad_right), std.repeat(1, 1, height, n_pad_right))
-        pad_top = torch.normal(mean.repeat(1,1, n_pad_top, n_pad_left + width + n_pad_right), std.repeat(1, 1, n_pad_top, n_pad_left + width + n_pad_right))
-        pad_bottom = torch.normal(mean.repeat(1,1, n_pad_bottom, n_pad_left + width + n_pad_right), std.repeat(1, 1, n_pad_bottom, n_pad_left + width + n_pad_right))
-        input_x = torch.cat([pad_top, torch.cat([pad_left, input_x, pad_right], dim=3), pad_bottom], dim=2)
-    output_x = F.conv2d(input_x, self.weight, self.bias, self.stride, 0, self.dilation, self.groups)
-    return output_x
-
-
-def patch_2d_conv(conv2d_layer):
-    conv2d_layer.forward = types.MethodType(modified_forward, conv2d_layer)
-
-def patch_all_2d_conv(module):
-    for layer in module.modules():
-        if isinstance(layer, torch.nn.Conv2d):
-            layer.forward = types.MethodType(modified_forward, layer)
-
-
-
 
 def patch_forward(net, img, patch_width, patch_height):
     padded_img = torch.zeros([img.size(0), img.size(1), (1+img.size(2)//patch_height)*patch_height,(1+img.size(3)//patch_width)*patch_width],device=img.device)
@@ -177,9 +191,9 @@ def create_net(arch,n_channels,n_classes, bn_momentum,rnd_pad, pretrained=True):
         class Network(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.in2u=torch.nn.Conv2d(n_channels, 32, 1)
-                self.unet=iunets.iUNet(in_channels=32, architecture=[2,3,3,4,4,5],dim=2)
-                self.u2out=torch.nn.Conv2d(32, n_classes, 1)
+                self.in2u=torch.nn.Conv2d(n_channels, 64, 1)
+                self.unet=iunets.iUNet(in_channels=64, architecture=[3,3,4,4,5],dim=2)
+                self.u2out=torch.nn.Conv2d(64, n_classes, 1)
 
             def forward(self, x):
                 x=self.in2u(x)

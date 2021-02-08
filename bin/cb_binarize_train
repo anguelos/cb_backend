@@ -18,6 +18,7 @@ from PIL import Image
 import time
 import tqdm
 import sys
+from kornia.losses import dice_loss
 
 
 torch.multiprocessing.set_start_method('spawn', force=True)
@@ -33,7 +34,7 @@ p={
     "self_pattern": "*png",
     "arch": [("dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet","runet"),"Model Archtecture"],
     "rrds_root": "/home/anguelos/data/rr/focused_segmentation/zips",
-    "dataset": [("rrds", "self_eval_2013", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2017", "dibco2018", "dibco2019"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
+    "dataset": [("rrds", "self2017", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2017", "dibco2018", "dibco2019"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
     "val_augmentation": "",
     "train_augmentation": "(RandomPlasmaLinearColor & RandomWrap.custom(roughness=Uniform(value_range=(0.1, 0.7)), intensity=Uniform(value_range=(0.18, 0.62))) & RandomPlasmaShadow.custom(roughness=Uniform(value_range=(0.334, 0.72)), shade_intencity=Uniform(value_range=(-0.32, 0.0)), shade_quantity=Uniform(value_range=(0.0, 0.44))) & RandomPerspective.custom(x_offset=Uniform(value_range=(0.75, 1.0)), y_offset=Uniform(value_range=(0.75, 1.0))) & RandomPlasmaBrightness.custom(roughness=Uniform(value_range=(0.1, 0.4)),intencity=Uniform(value_range=(0.322, 0.9))) )",
     "optimiser":[("adam", "sgd"),"The optimiser used for training"],
@@ -56,6 +57,7 @@ p={
     "patch_height": 512,
     "val_patch_width": -1,
     "val_patch_height": -1,
+    "dice_coefficinet":.0,
     #"rnd_pad":False,
     "crop_loss": 0,
     "pretrained": True,
@@ -64,6 +66,8 @@ p={
 param_dict, _ = fargv.fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
 p, _ = fargv.fargv(p, return_named_tuple=True)
 device = torch.device(p.device)
+
+
 
 def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=True, is_deeplabv3=True, save_input_images=False):
     is_validation = optimizer is None
@@ -85,18 +89,23 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
             #plt.imshow(gt.cpu().numpy()[0,1:,:,:]);plt.colorbar();plt.show()
             input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
 
-            coeffs = mask.unsqueeze(dim=0)
+            coeffs = mask.clone()
             if p.gt_focus_loss > 0:
                 coeffs *= (1-p.gt_focus_loss) + p.gt_focus_loss * gt[:, 1:, :, :]
             if p.crop_loss>0:
-                coeffs[:, :, :p.crop_loss,:0]=0
-                coeffs[:, :, -p.crop_loss:,:0]=0
-                coeffs[:, :, :,p.crop_loss]=0
+                coeffs[:, :, :p.crop_loss,:]=0
+                coeffs[:, :, -p.crop_loss:,:]=0
+                coeffs[:, :, :,:p.crop_loss]=0
                 coeffs[:, :, :,-p.crop_loss:]=0
 
             prediction = net(input_img)
             loss = criterion(prediction, gt)
             loss = loss * coeffs
+            if p.dice_coefficinet > 0:
+                soft_pred = torch.softmax(prediction, dim =1)
+                dice = 1-((2*soft_pred*coeffs*gt*coeffs).sum()+.1)/((soft_pred*coeffs+gt*coeffs).sum()+.1)
+                loss = p.dice_coefficinet * dice + (1-p.dice_coefficinet) * loss
+
             prediction = torch.nn.functional.softmax(prediction, dim=1)
             loss = loss.sum()
             if not is_validation:
@@ -110,11 +119,18 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
             recalls.append(recall)
             losses.append(loss.item()/gt.view(-1).size()[0])
             if save_images:
-                Image.fromarray(np.uint8(confusion*255)).save(f"/tmp/{isval_str}_conf_{n}.png")
+                print("Conf:",confusion.shape, confusion.min(),confusion.max())
+                conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
+                conf_img.save(f"/tmp/conf_{isval_str}_{n}.png")
                 prediction = torch.softmax(prediction[0, :, :, :], dim=0)
-                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255).astype('uint8')).save(f"/tmp/{isval_str}_out_{n}.png")
+                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/output_{isval_str}_{n}.png")
+                Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/mask_{isval_str}_{n}.png")
+                Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/gt_{isval_str}_{n}.png")
+                print(coeffs.shape,coeffs.min(),coeffs.max())
+                Image.fromarray((coeffs[0, 0, :, :].detach().cpu().numpy() * 255).astype("uint8")).convert('RGB').save(
+                    f"/tmp/coeff_{isval_str}_{n}.png")
             if save_input_images:
-                torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/input_{isval_str}_img_{n}.png")
+                torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/input_{isval_str}_{n}.png")
 
     lines = []
     lines.append("Epoch {} {} Total:\t{:05f}%".format(epoch, isval_str, 100*sum(fscores)/(.0000001+len(fscores))))
@@ -143,6 +159,10 @@ if p.val_patch_width != -1 or p.val_patch_height != -1:
 if p.dataset == "rrds":
     trainset = RR2013Ch2(train=True, return_mask=True,cache_ds=True,root=p.rrds_root,default_width=p.patch_width,default_height=p.patch_height)
     validationset = RR2013Ch2(train=False, return_mask=True, cache_ds=True, root=p.rrds_root, default_width=p.patch_width, default_height=p.patch_height)
+elif p.dataset == "self2017":
+    trainset = SingleImageDataset(glob.glob(p.self_pattern))
+    #validationset = SingleImageDataset(glob.glob(p.self_pattern))
+    validationset = Dibco.Dibco2017()
 elif p.dataset == "dibco2010":
     trainset = Dibco.Dibco2009()
     validationset = Dibco.Dibco2010()

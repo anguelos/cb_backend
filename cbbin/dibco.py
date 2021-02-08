@@ -71,12 +71,12 @@ def resumable_download(url,save_dir):
 dibco_transform_gray_input = torchvision.transforms.Compose([
     torchvision.transforms.Grayscale(),
     torchvision.transforms.ToTensor(),
-    lambda x: torch.cat([x, 1 - x])
+    #lambda x: torch.cat([x, 1 - x])
 ])
 
 dibco_transform_color_input = torchvision.transforms.Compose([
     torchvision.transforms.ToTensor(),
-    #torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+    torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 ])
 
 dibco_transform_gt = torchvision.transforms.Compose([
