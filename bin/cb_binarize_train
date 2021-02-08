@@ -60,6 +60,8 @@ p={
     #"rnd_pad":False,
     "crop_loss": 0,
     "pretrained": True,
+    "dice_window":-1,
+    "dice_lcosh":-1
     #"bn_momentum": (.1, "[0.-1.] negative for None this changes the batchnormalisation momentum parameter.")
 }
 param_dict, _ = fargv.fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
@@ -101,8 +103,29 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
             loss = loss * coeffs
             if p.dice_coefficinet > 0:
                 soft_pred = torch.softmax(prediction, dim =1)
-                dice = 1-((2*soft_pred*coeffs*gt*coeffs).sum()+.1)/((soft_pred*coeffs+gt*coeffs).sum()+.1)
-                loss = p.dice_coefficinet * dice + (1-p.dice_coefficinet) * loss
+                soft_pred = soft_pred[:,1:,:,:]
+
+                intersection = 2*soft_pred*gt[:,1:,:,:]
+                cardinality = soft_pred+gt[:,1:,:,:]
+                lcosh = lambda x: torch.log((torch.exp(x) + torch.exp(-x)) / 2)
+
+                if p.dice_window == -1:
+                    dice = 1-((intersection).sum()+.1)/((cardinality).sum()+.1)
+                    if p.dice_lcosh:
+                        loss = p.dice_coefficinet * lcosh(dice) + (1 - p.dice_coefficinet) * loss
+                    else:
+                        loss = p.dice_coefficinet * lcosh(dice) + (1 - p.dice_coefficinet) * loss
+                else:
+                    c_intersection = intersection.cumsum(dim=2).cumsum(dim=3)
+                    c_cardinality = cardinality.cumsum(dim=2).cumsum(dim=3)
+                    w_sz = p.dice_window - 1
+                    integral = lambda x: (x[:, :, w_sz:, w_sz:] + x[:, :, :-w_sz, :-w_sz]) - (x[:, :, :-w_sz, w_sz:]+ x[:, :, w_sz:, :-w_sz])
+                    c_intersection = integral(c_intersection)
+                    c_cardinality = integral(c_cardinality)
+                    dice_loss_map = ((c_intersection+.1)/(c_cardinality+.1))
+                    if p.dice_lcosh:
+                        dice_loss_map = lcosh(1-dice_loss_map)
+                    loss = p.dice_coefficinet * dice_loss_map.mean() + (1-p.dice_coefficinet) * loss
 
             prediction = torch.nn.functional.softmax(prediction, dim=1)
             loss = loss.sum()
@@ -117,17 +140,22 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
             recalls.append(recall)
             losses.append(loss.item()/gt.view(-1).size()[0])
             if save_images:
+                if p.dice_window>-1:
+                    plt.clf()
+                    plt.imshow(dice_loss_map[0,:,:,:].sum(dim=0).detach().cpu().numpy());
+                    plt.colorbar();
+                    plt.savefig(f"/tmp/{isval_str}_{n}_dice_window.png")
                 conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
-                conf_img.save(f"/tmp/conf_{isval_str}_{n}.png")
+                conf_img.save(f"/tmp/{isval_str}_{n}_conf.png")
                 prediction = torch.softmax(prediction[0, :, :, :], dim=0)
-                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/output_{isval_str}_{n}.png")
-                Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/mask_{isval_str}_{n}.png")
-                Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/gt_{isval_str}_{n}.png")
+                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_output.png")
+                Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_mask.png")
+                Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_gt.png")
 
                 Image.fromarray((coeffs[0, 0, :, :].detach().cpu().numpy() * 255).astype("uint8")).convert('RGB').save(
-                    f"/tmp/coeff_{isval_str}_{n}.png")
+                    f"/tmp/{isval_str}_{n}_coeff.png")
             if save_input_images:
-                torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/input_{isval_str}_{n}.png")
+                torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/{isval_str}_{n}_input.png")
 
     lines = []
     lines.append("Epoch {} {} Total:\t{:05f}%".format(epoch, isval_str, 100*sum(fscores)/(.0000001+len(fscores))))
