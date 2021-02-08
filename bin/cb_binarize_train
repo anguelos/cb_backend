@@ -68,7 +68,6 @@ p, _ = fargv.fargv(p, return_named_tuple=True)
 device = torch.device(p.device)
 
 
-
 def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=True, is_deeplabv3=True, save_input_images=False):
     is_validation = optimizer is None
     isval_str = 'validation' if is_validation else 'training'
@@ -159,6 +158,7 @@ if p.val_patch_width != -1 or p.val_patch_height != -1:
 if p.dataset == "rrds":
     trainset = RR2013Ch2(train=True, return_mask=True,cache_ds=True,root=p.rrds_root,default_width=p.patch_width,default_height=p.patch_height)
     validationset = RR2013Ch2(train=False, return_mask=True, cache_ds=True, root=p.rrds_root, default_width=p.patch_width, default_height=p.patch_height)
+
 elif p.dataset == "self2017":
     trainset = SingleImageDataset(glob.glob(p.self_pattern))
     #validationset = SingleImageDataset(glob.glob(p.self_pattern))
