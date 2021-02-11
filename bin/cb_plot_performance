@@ -11,13 +11,26 @@ from scipy.ndimage.filters import gaussian_filter1d
 p={"models":set([]),
    "max_epoch": 200,
    "sigma":15,
+   "verbose": False,
+   "print_epoch_params": -1
 }
+
+
+def print_model(model_name, param_hist, iteration=-1):
+   param_dictionary = [item[1] for item in sorted(param_hist.items())][iteration]
+   print(f"\nsave model: {model_name}")
+   for k in sorted(param_dictionary.keys()):
+      print(f"\t{k}:\t{repr(param_dictionary[k])}")
+   print("")
+
 
 p,_=fargv.fargv(p, return_named_tuple=True)
 f,ax = plt.subplots(2,2)
 for model in p.models:
-   print("MODEL",model)
+
    pt_dict=torch.load(model,map_location="cpu")
+   if p.verbose:
+      print_model(model, pt_dict["param_hist"], p.print_epoch_params)
    train_error = pt_dict["per_epoch_train_errors"]
    val_error = pt_dict["per_epoch_validation_errors"]
    for ax_n, (name, error) in enumerate([["Train Error", train_error], ["Patch Validation Error", val_error]]):
