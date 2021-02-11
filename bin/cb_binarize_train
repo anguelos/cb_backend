@@ -32,9 +32,9 @@ p={
     "save_images": False,
     "save_input_images": False,
     "self_pattern": "*png",
-    "arch": [("dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet","runet"),"Model Archtecture"],
+    "arch": [("dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet","runet","srunet","wrunet"),"Model Archtecture"],
     "rrds_root": "/home/anguelos/data/rr/focused_segmentation/zips",
-    "dataset": [("rrds", "self2017", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2017", "dibco2018", "dibco2019"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
+    "dataset": [("rrds", "self2017", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2017", "dibco2018", "dibco2019", "rnd2009"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
     "val_augmentation": "",
     "train_augmentation": "(RandomPlasmaLinearColor & RandomWrap.custom(roughness=Uniform(value_range=(0.1, 0.7)), intensity=Uniform(value_range=(0.18, 0.62))) & RandomPlasmaShadow.custom(roughness=Uniform(value_range=(0.334, 0.72)), shade_intencity=Uniform(value_range=(-0.32, 0.0)), shade_quantity=Uniform(value_range=(0.0, 0.44))) & RandomPerspective.custom(x_offset=Uniform(value_range=(0.75, 1.0)), y_offset=Uniform(value_range=(0.75, 1.0))) & RandomPlasmaBrightness.custom(roughness=Uniform(value_range=(0.1, 0.4)),intencity=Uniform(value_range=(0.322, 0.9))) )",
     "optimiser":[("adam", "sgd"),"The optimiser used for training"],
@@ -219,6 +219,29 @@ elif p.dataset == "dibco2019":
 elif p.dataset == "dibco2009":
     trainset = Dibco.Dibco2009()
     validationset = Dibco.Dibco2009()
+elif p.dataset == "rnd2009":
+    trainset=[]
+    train_augmentation_factory = tormentor.RandomIdentity
+    for n, gt_img in enumerate([Dibco.Dibco2009()[3][1],Dibco.Dibco2009()[4][1]]):
+        gt_img = gt_img[:, :400, :400]
+        if gt_img.size(1) % 2:
+            gt_img = gt_img[:,1:,:]
+        if gt_img.size(2) % 2:
+            gt_img = gt_img[:,:,1:]
+        print("SIZE:",gt_img.size())
+        #gt_img=gt_img[:,:gt_img.size(1),:gt_img.size(2)]
+        in_img = torch.zeros((3, gt_img.size(1), gt_img.size(2)))
+        if n==0:
+            in_img[:,gt_img.size(1)//2:,gt_img.size(2)//2:]=1
+        if n==1:
+            in_img[:,:gt_img.size(1)//2,:gt_img.size(2)//2]=1
+        in_img = torch.rand_like(in_img)
+        #in_img = in_img*.9+.1*torch.rand_like(in_img)
+        #gt_img=(torch.rand_like(gt_img) > torch.rand_like(gt_img)).float()
+        #gt_img[0,:,:] = 1- gt_img[1,:,:]
+        trainset.append((in_img, gt_img))
+    validationset = trainset
+
 
 
 trainset = tormentor.AugmentedDs(trainset, augmentation_factory=train_augmentation_factory,

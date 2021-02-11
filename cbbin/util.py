@@ -201,6 +201,34 @@ def create_net(arch,n_channels,n_classes, bn_momentum,rnd_pad, pretrained=True):
                 x= self.u2out(x)
                 return x
         net=Network()
+    elif arch == "srunet":
+        class Network(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.in2u=torch.nn.Conv2d(n_channels, 32, 1)
+                self.unet=iunets.iUNet(in_channels=32, architecture=[3,3,3,3],dim=2)
+                self.u2out=torch.nn.Conv2d(32, n_classes, 1)
+
+            def forward(self, x):
+                x=self.in2u(x)
+                x= self.unet(x)
+                x= self.u2out(x)
+                return x
+        net=Network()
+    elif arch == "wrunet":
+        class Network(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.in2u=torch.nn.Conv2d(n_channels, 128, 1)
+                self.unet=iunets.iUNet(in_channels=128, architecture=[4,4,4,4],dim=2)
+                self.u2out=torch.nn.Conv2d(128, n_classes, 1)
+
+            def forward(self, x):
+                x=self.in2u(x)
+                x= self.unet(x)
+                x= self.u2out(x)
+                return x
+        net=Network()
     elif arch == "dunet50":
         print("Creating Resnet")
         body = fastai.vision.learner.create_body(fastai.vision.models.resnet50, pretrained=pretrained, cut=-2)

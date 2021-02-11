@@ -10,7 +10,7 @@ from scipy.ndimage.filters import gaussian_filter1d
 
 p={"models":set([]),
    "max_epoch": 200,
-   "sigma":15,
+   "sigma":15.,
    "verbose": False,
    "print_epoch_params": -1
 }
