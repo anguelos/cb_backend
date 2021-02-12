@@ -220,7 +220,7 @@ def create_net(arch,n_channels,n_classes, bn_momentum,rnd_pad, pretrained=True):
             def __init__(self):
                 super().__init__()
                 self.in2u=torch.nn.Conv2d(n_channels, 128, 1)
-                self.unet=iunets.iUNet(in_channels=128, architecture=[4,4,4,4],dim=2)
+                self.unet=iunets.iUNet(in_channels=128, architecture=[3,3,4,5],dim=2)
                 self.u2out=torch.nn.Conv2d(128, n_classes, 1)
 
             def forward(self, x):

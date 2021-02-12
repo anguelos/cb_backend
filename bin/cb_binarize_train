@@ -31,6 +31,7 @@ p={
     "gt_focus_loss": 0.,
     "save_images": False,
     "save_input_images": False,
+    "save_images_per_epoch": False,
     "self_pattern": "*png",
     "arch": [("dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet","runet","srunet","wrunet"),"Model Archtecture"],
     "rrds_root": "/home/anguelos/data/rr/focused_segmentation/zips",
@@ -148,7 +149,10 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
                 conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
                 conf_img.save(f"/tmp/{isval_str}_{n}_conf.png")
                 prediction = torch.softmax(prediction[0, :, :, :], dim=0)
-                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_output.png")
+                if is_validation and p.save_images_per_epoch:
+                    Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_output_{epoch:05}.png")
+                else:
+                    Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_output.png")
                 Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_mask.png")
                 Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{isval_str}_{n}_gt.png")
 
