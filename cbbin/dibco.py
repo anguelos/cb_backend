@@ -204,7 +204,7 @@ class Dibco:
         kwargs["partitions"] = ["2019A","2019B"]
         return Dibco(**kwargs)
 
-    def __init__(self, partitions=["2009_HW", "2009_P"], root="./tmp/dibco", input_transform=dibco_transform_color_input, gt_transform=dibco_transform_gt, add_mask=False):
+    def __init__(self, partitions=["2009_HW", "2009_P"], root="./tmp/dibco", input_transform=dibco_transform_gray_input, gt_transform=dibco_transform_gt, add_mask=False):
         self.input_transform = input_transform
         self.gt_transform = gt_transform
         self.root = root

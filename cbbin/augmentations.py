@@ -4,7 +4,7 @@ import torch
 from tormentor import AugmentationState
 
 
-class BleedThrough(tormentor.StaticImageAugmentation):
+class Bleedthrough(tormentor.StaticImageAugmentation):
     center_x = tormentor.Uniform([-1, 1])
     center_y = tormentor.Uniform([-1, 1])
     h_flip = tormentor.Bernoulli(.5)
@@ -108,6 +108,38 @@ class Erode(tormentor.StaticImageAugmentation):
         return image_batch * (1 - erase) + bg_plasma * erase
 
 
+class ScaleIntencity(tormentor.ColorAugmentation):
+    r"""Lowers   the brightness of the image over a random mask.
+
+    .. image:: _static/example_images/PlasmaShadow.png
+   """
+    min_inv_max = tormentor.Uniform(value_range=(.0, .3))
+
+    def generate_batch_state(self, batch_tensor: torch.FloatTensor) -> torch.FloatTensor:
+        batch_sz = batch_tensor.size(0)
+        min_inv_max = type(self).min_inv_max((batch_sz, 2), device=batch_tensor.device)
+        min = min_inv_max[:, 0]
+        max = 1 - min_inv_max[:, 1]
+        return min, max
+
+    @classmethod
+    def functional_image(cls, batch: torch.FloatTensor, min: torch.FloatTensor, max: torch.FloatTensor) -> torch.FloatTensor:
+        min = min.view(-1,1,1,1)
+        max = max.view(-1,1,1,1)
+        scale = max - min
+        return torch.clamp(batch * scale + min, 0, 1)
+
 #tormentor.RandomIdentity ^ tormentor.RandomWrap ^ BleedThrough ^ Erode ^ tormentor.RandomIdentity
 
-augmentation_pipeline = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity , tormentor.RandomWrap , BleedThrough , Erode , tormentor.RandomIdentity]))
+perspective = tormentor.RandomPerspective.custom(x_offset=tormentor.Uniform(value_range=(0.9, 1.1)), y_offset=tormentor.Uniform(value_range=(0.9, 1.11)))
+wrap = tormentor.RandomWrap.custom(roughness=tormentor.Uniform(value_range=(0.232, 0.352)), intensity=tormentor.Uniform(value_range=(0.4, 0.48)))
+
+#augmentation_pipeline = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity , tormentor.RandomWrap , BleedThrough , Erode , tormentor.RandomIdentity]))
+pre_spatials0 = tormentor.AugmentationFactory(ScaleIntencity)
+pre_spatials1 = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity , Bleedthrough]))
+pre_spatials2 = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity, tormentor.RandomIdentity, Erode]))
+pre_spatials3 = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity, tormentor.RandomPlasmaBrightness, tormentor.PlasmaShadow]))
+spatials = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity , wrap ,perspective]))
+#augmentation_pipeline = tormentor.AugmentationFactory(GaussianAdditiveNoise)
+augmentation_pipeline = pre_spatials1|pre_spatials2|spatials|pre_spatials3
+augmentation_pipeline = pre_spatials0 | pre_spatials1 | pre_spatials2 | spatials | pre_spatials3

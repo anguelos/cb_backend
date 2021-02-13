@@ -43,7 +43,10 @@ for model in p.models:
       Y=np.array(Y)
       #print(X)
       #print(Y)
-      ax[0][ax_n].plot(X[X<p.max_epoch],gaussian_filter1d((1-Y[X<p.max_epoch]),sigma=p.sigma),".-",label=model)
+      if p.sigma>=1:
+         ax[0][ax_n].plot(X[X<p.max_epoch],gaussian_filter1d((1-Y[X<p.max_epoch]),sigma=p.sigma),".-",label=model)
+      else:
+         ax[0][ax_n].plot(X[X < p.max_epoch], (1 - Y[X < p.max_epoch]), ".-",label=model)
       ax[0][ax_n].set_ylabel(name)
       ax[0][ax_n].set_xlabel("Epoch")
       Y=[]
