@@ -5,3 +5,4 @@ from .rr_ds import RR2013Ch2, augment_RRDS_batch
 from .dibco import Dibco, dibco_transform_gt, dibco_transform_gt, dibco_transform_color_input
 from .util import render_confusion, save, resume, create_net, SingleImageDataset
 from .augmentations import *
+from .otsu import *

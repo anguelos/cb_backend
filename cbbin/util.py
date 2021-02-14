@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import types
 import PIL
 from .dibco import dibco_transform_color_input, dibco_transform_gt, dibco_transform_gray_input
+from .otsu import OtsuPtPIL
 
 
 class Discriminator(torch.nn.Module):
@@ -259,12 +260,11 @@ def create_net(arch,n_channels,n_classes, bn_momentum,rnd_pad, pretrained=True):
     elif arch == "R2UNet":
         net = R2U_Net(img_ch=n_channels, output_ch=n_classes)
     elif arch == "UNet":
-        #img_ch=3,output_ch=1
         net = U_Net(img_ch=n_channels, output_ch=n_classes)
+    elif arch == "otsu":
+        net = OtsuPtPIL(rgb_to_gray=True,n_outputs=2)
     else:
         raise ValueError("arch must be either dunet34, dunet50, dunet18, or unet")
-    if rnd_pad:
-        patch_all_2d_conv(net)
     return net
 
 
