@@ -69,7 +69,6 @@ class SingleImageDataset(object):
         res = self.transform(res), self.gt_transform(res)
         if self.add_mask:
             res=res+(torch.ones_like(res[0][:1,:,:]),)
-        print("Single Image:",[r.size() for r in res])
         return res
 
     def __len__(self):
