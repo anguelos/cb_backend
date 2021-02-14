@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 import types
 import PIL
-from .dibco import dibco_transform_color_input, dibco_transform_gt
+from .dibco import dibco_transform_color_input, dibco_transform_gt, dibco_transform_gray_input
 
 
 class Discriminator(torch.nn.Module):
@@ -43,7 +43,7 @@ class Discriminator(torch.nn.Module):
         return self.main(input)
 
 class SingleImageDataset(object):
-    def __init__(self, image_filename_list, transform=dibco_transform_color_input, gt_transform=dibco_transform_gt,  cache_images=False, add_mask=0):
+    def __init__(self, image_filename_list, transform=dibco_transform_gray_input, gt_transform=dibco_transform_gt,  cache_images=False, add_mask=0):
         self.image_filenames = image_filename_list
         self.cache_images = cache_images
         self.transform = transform
