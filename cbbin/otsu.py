@@ -12,7 +12,7 @@ class OtsuPtPIL(torch.nn.Module):
         self.n_outputs = n_outputs
 
     def forward(self, x):
-        if x.size(1) == 3 and x:
+        if x.size(1) == 3 and self.rgb_to_gray:
             img = K.color.rgb_to_grayscale(x)
         else:
             assert x.size(1) == 1
