@@ -162,4 +162,5 @@ pre_spatials3 = tormentor.AugmentationFactory(tormentor.AugmentationChoice.creat
 spatials = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity , wrap ,perspective]))
 #augmentation_pipeline = tormentor.AugmentationFactory(GaussianAdditiveNoise)
 augmentation_pipeline = pre_spatials1|pre_spatials2|spatials|pre_spatials3
-augmentation_pipeline = pre_spatials0 | pre_spatials1 | pre_spatials2 | spatials | pre_spatials3
+full_augmentation_pipeline = pre_spatials0 | pre_spatials1 | pre_spatials2 | spatials | pre_spatials3
+half_augmentation_pipeline = tormentor.AugmentationFactory(tormentor.AugmentationChoice.create([tormentor.RandomIdentity, full_augmentation_pipeline]))
