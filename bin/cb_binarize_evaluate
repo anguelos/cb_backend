@@ -139,10 +139,10 @@ else:
     net = create_net(model_param_dict["arch"], model_param_dict["n_channels"], model_param_dict["n_classes"], .99, False, False)
     arch = model_param_dict["arch"]
 
-param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net, p.model, p.device)
+param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net, p.model, device)
 
 print("done!")
 print("Computing images:")
 
-fscores, precisions, recalls = run_evaluation(p, p.device, dataloader, net, p.save_images, p.save_input_images,arch)
+fscores, precisions, recalls = run_evaluation(p, device, dataloader, net, p.save_images, p.save_input_images,arch)
 print(render_outpouts(fscores, precisions, recalls), p.output_mode)
