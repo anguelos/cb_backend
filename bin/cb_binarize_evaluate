@@ -24,7 +24,8 @@ p = {
     "tormentor_device": "cpu",
     "device": "cuda",
     "model": "otsu",
-    "output_mode": ("txt",)
+    "output_mode": ("txt",),
+    "max_device_mp": 5.0
 }
 
 param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
@@ -75,7 +76,11 @@ def run_evaluation(p, device, loader, net, save_images=True, save_input_images=F
                 input_img, gt = data
                 mask = torch.ones_like(gt[:,:1,:,:])
             #plt.imshow(gt.cpu().numpy()[0,1:,:,:]);plt.colorbar();plt.show()
-            input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
+            if input_img.size(2)*input_img.size(3)/1000000. < p.max_device_mp:
+                input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
+            else:
+                print(f"Skiping {n} because it is to large {input_img.size(3)}x{input_img.size(2)}.")
+                net = net.to("cpu")
             prediction = net(input_img)
             prediction = torch.nn.functional.softmax(prediction, dim=1)
             confusion, precision, recall, fscore = render_confusion(prediction[0,0,:,:] < prediction[0,1,:,:], gt[0, 0, :, :] < .5, mask[0,0,:,:] > .5)
@@ -92,6 +97,8 @@ def run_evaluation(p, device, loader, net, save_images=True, save_input_images=F
                 Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_gt.png")
             if save_input_images:
                 torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/{p.dataset}_{arch}_{n}_input.png")
+            if input_img.size(2)*input_img.size(3)/1000000. >= p.max_device_mp:
+                net = net.to(device)
     lines = []
     lines.append('')
     print("computed in {:05f} sec.".format(time.time()-t),file=sys.stderr)
