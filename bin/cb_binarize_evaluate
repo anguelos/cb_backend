@@ -23,7 +23,7 @@ p = {
     "io_threads": 0,
     "tormentor_device": "cpu",
     "device": "cuda",
-    "model": "otsu",
+    "models": {"otsu"},
     "output_mode": ("txt",),
     "max_device_mp": 5.0,
     "input_channels": 1
@@ -62,87 +62,93 @@ elif p.dataset == "dibco2009":
 dataloader = torch.utils.data.DataLoader(dataset,shuffle=False, batch_size=1, num_workers=p.io_threads)
 
 
-def run_evaluation(p, device, loader, net, save_images=True, save_input_images=False,arch="otsu"):
-    with torch.no_grad():
-        net = net.to(device)
-        net.eval()
-        fscores = []
-        precisions = []
-        recalls = []
-        t = time.time()
-        for n, data in tqdm.tqdm(enumerate(loader)):
-            if len(data) == 3:
-                (input_img, gt, mask) = data
-            elif len(data) == 2:
-                input_img, gt = data
-                mask = torch.ones_like(gt[:,:1,:,:])
-            if p.input_channels != input_img.size(1):
-                if input_img.size(1) == 1:
-                    input_img = input_img.repeat(1,p.input_channels,1,1)
+def run_evaluation(p, device, loader, save_images=True, save_input_images=False):
+    res = {}
+    for model in p.models:
+        print("Resuming Model ... ")
+        if model == "otsu":
+            net = create_net("otsu", 1, 2, .99, False, False)
+            arch = "otsu"
+        else:
+            model_param_dict = sorted(torch.load(model, map_location="cpu")["param_hist"].items())[-1][1]
+            net = create_net(model_param_dict["arch"], model_param_dict["n_channels"], model_param_dict["n_classes"], .99,
+                             False, False)
+            arch = model_param_dict["arch"]
+            param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net, model, device)
+
+        with torch.no_grad():
+            net = net.to(device)
+            net.eval()
+            fscores = []
+            precisions = []
+            recalls = []
+            t = time.time()
+            for n, data in tqdm.tqdm(enumerate(loader)):
+                if len(data) == 3:
+                    (input_img, gt, mask) = data
+                elif len(data) == 2:
+                    input_img, gt = data
+                    mask = torch.ones_like(gt[:,:1,:,:])
+                if p.input_channels != input_img.size(1):
+                    if input_img.size(1) == 1:
+                        input_img = input_img.repeat(1,p.input_channels,1,1)
+                    else:
+                        raise ValueError
+
+                #plt.imshow(gt.cpu().numpy()[0,1:,:,:]);plt.colorbar();plt.show()
+                if input_img.size(2)*input_img.size(3)/1000000. < p.max_device_mp:
+                    input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
                 else:
-                    raise ValueError
+                    print(f"Skiping {n} because it is to large {input_img.size(3)}x{input_img.size(2)}.")
+                    net = net.to("cpu")
+                prediction = net(input_img)
+                prediction = torch.nn.functional.softmax(prediction, dim=1)
+                confusion, precision, recall, fscore = render_confusion(prediction[0,0,:,:] < prediction[0,1,:,:], gt[0, 0, :, :] < .5, mask[0,0,:,:] > .5)
 
-            #plt.imshow(gt.cpu().numpy()[0,1:,:,:]);plt.colorbar();plt.show()
-            if input_img.size(2)*input_img.size(3)/1000000. < p.max_device_mp:
-                input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
-            else:
-                print(f"Skiping {n} because it is to large {input_img.size(3)}x{input_img.size(2)}.")
-                net = net.to("cpu")
-            prediction = net(input_img)
-            prediction = torch.nn.functional.softmax(prediction, dim=1)
-            confusion, precision, recall, fscore = render_confusion(prediction[0,0,:,:] < prediction[0,1,:,:], gt[0, 0, :, :] < .5, mask[0,0,:,:] > .5)
+                fscores.append(fscore)
+                precisions.append(precision)
+                recalls.append(recall)
+                if save_images:
+                    conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
+                    conf_img.save(f"/tmp/{p.dataset}_{arch}_{n}_conf.png")
+                    prediction = torch.softmax(prediction[0, :, :, :], dim=0)
+                    Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_output.png")
+                    Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_mask.png")
+                    Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_gt.png")
+                if save_input_images:
+                    torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/{p.dataset}_{arch}_{n}_input.png")
+                if input_img.size(2)*input_img.size(3)/1000000. >= p.max_device_mp:
+                    net = net.to(device)
 
-            fscores.append(fscore)
-            precisions.append(precision)
-            recalls.append(recall)
-            if save_images:
-                conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
-                conf_img.save(f"/tmp/{p.dataset}_{arch}_{n}_conf.png")
-                prediction = torch.softmax(prediction[0, :, :, :], dim=0)
-                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_output.png")
-                Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_mask.png")
-                Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{p.dataset}_{arch}_{n}_gt.png")
-            if save_input_images:
-                torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/{p.dataset}_{arch}_{n}_input.png")
-            if input_img.size(2)*input_img.size(3)/1000000. >= p.max_device_mp:
-                net = net.to(device)
-    lines = []
-    lines.append('')
-    print("computed in {:05f} sec.".format(time.time()-t),file=sys.stderr)
-    print("\n".join(lines))
-    return fscores, precisions, recalls
+        print(f"computed {model} in {time.time()-t:05f} sec.",file=sys.stderr)
+        res[model] = fscores, precisions, recalls
+    return res
 
-def render_outpouts(fscores, precisions, recalls, mode="txt"):
+
+def render_outpouts(model_scores, mode="txt"):
+    lines = ['']
+    if len(model_scores) == 1:
+        lines.append(f" {'Page#':10} | {'F-Score':>10} | {'Precision':<10} | {'Recall':<10}")
+    else:
+        lines.append(f" {'Model':60} | {'F-Score':>10} | {'Precision':<10} | {'Recall':<10}")
+    lines.append("-" * len(lines[-1]))
+
     if mode == "txt":
-        lines = []
-        lines.append(f"\t Page# |\t F-Score | \tPrec. | \Recall")
-        lines.append("-" * len(lines[-1]))
-        for n in range(len(fscores)):
-            lines.append(f"\t{n} | \t{100*fscores[n]:.3} | \t{100*precisions[n]:.3} | \t{100*recalls[n]:.3}")
-        lines.append("-"*len(lines[-1]))
-        fscore = sum(fscores)/len(fscores)
-        precision = sum(precisions) / len(precisions)
-        recall = sum(recalls) / len(recalls)
-        lines.append(f"\t{n} | \t{100 * fscore:.3} | \t{100 * precision:.3} | \t{100 * recall:.3}")
+        for model in model_scores.keys():
+            fscores, precisions, recalls = model_scores[model]
+            if len(model_scores) == 1:
+                for n in range(len(fscores)):
+                    lines.append(f" {n:>10} | {100*fscores[n]:>10.5} | {100*precisions[n]:>10.5} | {100*recalls[n]:>10.5}")
+            fscore = sum(fscores)/len(fscores)
+            precision = sum(precisions) / len(precisions)
+            recall = sum(recalls) / len(recalls)
+            lines.append(f" {model:60} | {100 * fscore:>10.5} | {100 * precision:<10.5} | {100 * recall:>10.5}")
         return "\n".join(lines)
     else:
         raise ValueError("Uknownn mode")
 
 
 
-print("Resuming Model ... ", end="")
-if p.model == "otsu":
-    net = create_net("otsu", 1, 2, .99, False, False)
-    arch = "otsu"
-else:
-    model_param_dict = sorted(torch.load(p.model, map_location="cpu")["param_hist"].items())[-1][1]
-    net = create_net(model_param_dict["arch"], model_param_dict["n_channels"], model_param_dict["n_classes"], .99, False, False)
-    arch = model_param_dict["arch"]
 
-param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net, p.model, device)
-
-print("done!")
-print("Computing images:")
-
-fscores, precisions, recalls = run_evaluation(p, device, dataloader, net, p.save_images, p.save_input_images,arch)
-print(render_outpouts(fscores, precisions, recalls), p.output_mode)
+model_scores = run_evaluation(p, device, dataloader, p.save_images, p.save_input_images)
+print(render_outpouts(model_scores, p.output_mode))
