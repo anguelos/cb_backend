@@ -25,7 +25,8 @@ p = {
     "device": "cuda",
     "model": "otsu",
     "output_mode": ("txt",),
-    "max_device_mp": 5.0
+    "max_device_mp": 5.0,
+    "input_channels": 1
 }
 
 param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
@@ -75,6 +76,12 @@ def run_evaluation(p, device, loader, net, save_images=True, save_input_images=F
             elif len(data) == 2:
                 input_img, gt = data
                 mask = torch.ones_like(gt[:,:1,:,:])
+            if p.n_channels != input_img.size(1):
+                if input_img.size(1) == 1:
+                    input_img = input_img.repeat(1,p.n_channels,1,1)
+                else:
+                    raise ValueError
+
             #plt.imshow(gt.cpu().numpy()[0,1:,:,:]);plt.colorbar();plt.show()
             if input_img.size(2)*input_img.size(3)/1000000. < p.max_device_mp:
                 input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
