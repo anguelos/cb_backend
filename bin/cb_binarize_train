@@ -87,7 +87,12 @@ def run_epoch(p, device, loader, net, criterion, optimizer=None, save_images=Tru
 
         t=time.time()
 
-        for n, (input_img,gt,mask) in tqdm.tqdm(enumerate(loader)):
+        for n, data in tqdm.tqdm(enumerate(loader)):
+            if len(data) == 3:
+                (input_img, gt, mask) = data
+            elif len(data) == 2:
+                input_img, gt = data
+                mask = torch.ones_like(gt[:,:1,:,:])
             #plt.imshow(gt.cpu().numpy()[0,1:,:,:]);plt.colorbar();plt.show()
             input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
 

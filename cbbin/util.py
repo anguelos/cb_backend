@@ -270,7 +270,7 @@ def create_net(arch,n_channels,n_classes, bn_momentum,rnd_pad, pretrained=True):
 
 def save(param_hist, per_epoch_train_errors,per_epoch_validation_errors,epoch,net):
     p=param_hist[sorted(param_hist.keys())[-1]]
-    save_dict=net.state_dict()
+    save_dict = {"net_state":net.state_dict()} # version2
     save_dict["param_hist"]=param_hist
     save_dict["per_epoch_train_errors"]=per_epoch_train_errors
     save_dict["per_epoch_validation_errors"] = per_epoch_validation_errors
@@ -296,7 +296,10 @@ def resume(net,resume_fname, device):
         del save_dict["per_epoch_validation_errors"]
         start_epoch=save_dict["epoch"]
         del save_dict["epoch"]
-        net.load_state_dict(save_dict)
+        if "net_state" in save_dict.keys():
+            net.load_state_dict(save_dict["net_state"])
+        else:
+            net.load_state_dict(save_dict)
         print("Resumed from ",resume_fname)
         return param_hist, per_epoch_train_errors, per_epoch_validation_errors,start_epoch,net
     except FileNotFoundError as e:

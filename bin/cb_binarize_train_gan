@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+
+import PIL
+import fastai.vision
+import tormentor
+import glob
+from tormentor import *
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+import torch
+import fargv
+import torchvision
+import numpy as np
+from cbbin import *
+
+from PIL import Image
+import time
+import tqdm
+import sys
+import cbbin
+from kornia.losses import dice_loss
+
+
+torch.multiprocessing.set_start_method('spawn', force=True)
+
+torch.autograd.set_detect_anomaly(True)
+
+p={
+    "n_channels": 1,
+    "n_classes": 2,
+    "gt_focus_loss": 0.,
+    "save_images": False,
+    "save_input_images": False,
+    "save_images_per_epoch": False,
+    "self_pattern": "*png",
+    "arch": [("runet","srunet","wrunet","dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet"),"Model Archtecture"],
+    "rrds_root": "/home/anguelos/data/rr/focused_segmentation/zips",
+    "dataset": [("dibco2017","rrds", "self2017", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2018", "dibco2019", "rnd2009"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
+    "val_augmentation": "",
+    "train_augmentation": "",
+    "optimiser":[("adam", "sgd"),"The optimiser used for training"],
+    "io_threads": 0,
+    "log_freq": 10,
+    "lr": .0002,
+    "epochs": 10,
+    "tormentor_device": "cpu",
+    "device": "cuda",
+    "val_device": "{device}",
+    "validate_freq": 5,
+    "trainoutputs_freq": 5,
+    "archive_nets": False,
+    "batch_size": 1,
+    "save_freq": 1,
+    "mask_gt": 1,
+    "resume_fname": "./models/{arch}.pt",
+    "patch_width": 256,
+    "patch_height": 256,
+    "val_patch_width": -1,
+    "val_patch_height": -1,
+    #"rnd_pad":False,
+    "crop_loss": 0,
+    "pretrained": True,
+    "adversarial_loss_coef": .05
+    #"bn_momentum": (.1, "[0.-1.] negative for None this changes the batchnormalisation momentum parameter.")
+}
+param_dict, _ = fargv.fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
+p, _ = fargv.fargv(p, return_named_tuple=True)
+device = torch.device(p.device)
+
+
+def save_gan(param_hist, per_epoch_train_errors, per_epoch_validation_errors, epoch, generator, discriminator):
+    p=param_hist[sorted(param_hist.keys())[-1]]
+    save_dict = {"net_state":generator.state_dict(),"discriminator_state":discriminator.state_dict()} # version2
+    save_dict["param_hist"]=param_hist
+    save_dict["per_epoch_train_errors"]=per_epoch_train_errors
+    save_dict["per_epoch_validation_errors"] = per_epoch_validation_errors
+    save_dict["epoch"]=epoch
+    torch.save(save_dict, p["resume_fname"])
+    if p["archive_nets"]:
+        folder="/".join(p["resume_fname"].split("/")[:-1])
+        if folder == "":
+            folder = "."
+        torch.save(save_dict, f"{folder}/{p['arch']}_{epoch:05}.pt")
+
+def resume_gan(generator, discriminator, resume_fname, device):
+    try:
+        save_dict=torch.load(resume_fname,map_location=device)
+        if "param_hist" in save_dict.keys():
+            param_hist=save_dict["param_hist"]
+            del save_dict["param_hist"]
+        else:
+            param_hist={}
+        per_epoch_train_errors=save_dict["per_epoch_train_errors"]
+        del save_dict["per_epoch_train_errors"]
+        per_epoch_validation_errors=save_dict["per_epoch_validation_errors"]
+        del save_dict["per_epoch_validation_errors"]
+        start_epoch=save_dict["epoch"]
+        del save_dict["epoch"]
+        if "net_state" in save_dict.keys():
+            generator.load_state_dict(save_dict["net_state"])
+        else:
+            generator.load_state_dict(save_dict)
+        if "discriminator_state" in save_dict.keys():
+            discriminator.load_state_dict(save_dict["discriminator_state"])
+            print("discriminator loaded")
+        else:
+            print("Could not load discriminator")
+        print("Resumed from ", resume_fname)
+        return param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, generator, discriminator
+    except FileNotFoundError as e:
+        print("Failed to resume from ", resume_fname)
+        return {}, {}, {}, 0, generator, discriminator
+
+
+
+def run_gan_epoch(p, device, dataloader, generator, discriminator, g_optimizer, d_optimizer):
+    discriminative_criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
+    adversarial_criterion = torch.nn.BCELoss()
+
+    iters = 0
+    real_label = 1.
+    fake_label = 0.
+    discriminator = discriminator.to(device)
+    discriminator.train()
+    generator = generator.to(device)
+    generator.train()
+    g_losses = []
+    d_losses = []
+    for i, data in enumerate(dataloader, 0):
+        print(f"iteration: {i}  ", end="")
+        input, gt_img, mask = data
+        input, gt_img, mask = input.to(device), gt_img.to(device), mask.to(device)
+
+        ############################
+        # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+        ###########################
+        ## Train with all-real batch
+        discriminator.zero_grad()
+        # Format batch
+        b_size = gt_img.size(0)
+        label = torch.full(gt_img[:,1:,:,:].size(), real_label, dtype=torch.float, device=device)
+        # Forward pass real batch through D
+        output = torch.sigmoid(discriminator(gt_img)[:,1:,:,:])
+        # Calculate loss on all-real batch
+        real_d_loss = adversarial_criterion(output, label).sum()
+        # Calculate gradients for D in backward pass
+        real_d_loss.backward()
+        d_accuracy_true = output.mean().item()
+
+        ## Train with all-fake batch
+
+        # Generate fake image batch with G
+        generator.zero_grad()
+        fake = generator(input)
+        label.fill_(fake_label)
+        # Classify all fake batch with D
+        output = torch.sigmoid(discriminator(torch.exp(torch.softmax(fake.detach()[:, :, :, :],dim=1))))
+        dicriminative_loss = discriminative_criterion(fake, gt_img).sum()
+        # Calculate D's loss on the all-fake batch
+        errD_fake = adversarial_criterion(output[:,1:,:,:], label).sum()
+        # Calculate the gradients for this batch
+        errD_fake.backward()
+        d_accuracy_true = output.mean().item()
+        # Add the gradients from the all-real and all-fake batches
+        errD = real_d_loss + errD_fake
+        # Update D
+        d_optimizer.step()
+        ############################
+        # (2) Update G network: maximize log(D(G(z)))
+        ###########################
+
+        label.fill_(real_label)  # fake labels are real for generator cost
+        # Since we just updated D, perform another forward pass of all-fake batch through D
+        output = torch.sigmoid(discriminator(fake))
+        # Calculate G's loss based on this output
+        #torch.softmax(prediction, dim =1)
+        adversarial_loss = adversarial_criterion(output[:, 1:, :, :], label).sum()
+        errG = p.adversarial_loss_coef * adversarial_loss + (1-p.adversarial_loss_coef) * dicriminative_loss
+
+        # Calculate gradients for G
+        errG.backward()
+
+        D_G_z2 = output.mean().item()
+        # Update G
+        g_optimizer.step()
+
+        # Save Losses for plotting later
+        g_losses.append(errG.item())
+        d_losses.append(errD.item())
+
+        # Check how the generator is doing by saving G's output on fixed_noise
+        iters += 1
+        print(f"G:{g_losses[-1]}     D:{d_losses[-1]}")
+        if iters % 10 == 0:
+            Image.fromarray((gt_img[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(
+                f"/tmp/gt.png")
+            Image.fromarray((torch.exp(fake[0, 1, :, :]).detach().cpu().numpy() * 255)).convert('RGB').save(
+                f"/tmp/pred.png")
+
+    print(f"Generator:{sum(g_losses)/len(g_losses):10.5} \t Discriminator:{sum(d_losses)/len(d_losses):10.5} \t ")
+
+if p.train_augmentation != "":
+    train_augmentation_factory = eval(p.train_augmentation)
+else:
+    train_augmentation_factory = tormentor.RandomIdentity
+
+if p.val_augmentation != "":
+    val_augmentation_factory = eval(p.val_augmentation)
+else:
+    val_augmentation_factory = tormentor.RandomIdentity
+
+if p.patch_width != -1 or p.patch_height != -1:
+    train_augmentation_factory = train_augmentation_factory.new_size(p.patch_width, p.patch_height)
+
+if p.val_patch_width != -1 or p.val_patch_height != -1:
+    val_augmentation_factory = val_augmentation_factory.new_size(p.val_patch_width, p.val_patch_height)
+
+if p.dataset == "rrds":
+    trainset = RR2013Ch2(train=True, return_mask=True,cache_ds=True,root=p.rrds_root,default_width=p.patch_width,default_height=p.patch_height)
+    validationset = RR2013Ch2(train=False, return_mask=True, cache_ds=True, root=p.rrds_root, default_width=p.patch_width, default_height=p.patch_height)
+
+elif p.dataset == "self2017":
+    trainset = SingleImageDataset(glob.glob(p.self_pattern))
+    #validationset = SingleImageDataset(glob.glob(p.self_pattern))
+    validationset = Dibco.Dibco2017()
+elif p.dataset == "dibco2010":
+    trainset = Dibco.Dibco2009()
+    validationset = Dibco.Dibco2010()
+elif p.dataset == "dibco2011":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010()
+    validationset = Dibco.Dibco2011()
+elif p.dataset == "dibco2012":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011()
+    validationset = Dibco.Dibco2012()
+elif p.dataset == "dibco2013":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012()
+    validationset = Dibco.Dibco2013()
+elif p.dataset == "dibco2014":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013()
+    validationset = Dibco.Dibco2014()
+elif p.dataset == "dibco2016":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014()
+    validationset = Dibco.Dibco2016()
+elif p.dataset == "dibco2017":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016()
+    validationset = Dibco.Dibco2017()
+elif p.dataset == "dibco2018":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2019()
+    validationset = Dibco.Dibco2018()
+elif p.dataset == "dibco2019":
+    trainset = Dibco.Dibco2009() + Dibco.Dibco2010() + Dibco.Dibco2011() + Dibco.Dibco2012() + Dibco.Dibco2013() + Dibco.Dibco2014() + Dibco.Dibco2016() + Dibco.Dibco2017() + Dibco.Dibco2018()
+    validationset = Dibco.Dibco2019()
+elif p.dataset == "dibco2009":
+    trainset = Dibco.Dibco2009()
+    validationset = Dibco.Dibco2009()
+elif p.dataset == "rnd2009":
+    trainset=[]
+    train_augmentation_factory = tormentor.RandomIdentity
+    for n, gt_img in enumerate([Dibco.Dibco2009()[3][1],Dibco.Dibco2009()[4][1]]):
+        gt_img = gt_img[:, :400, :400]
+        if gt_img.size(1) % 2:
+            gt_img = gt_img[:,1:,:]
+        if gt_img.size(2) % 2:
+            gt_img = gt_img[:,:,1:]
+        print("SIZE:",gt_img.size())
+        #gt_img=gt_img[:,:gt_img.size(1),:gt_img.size(2)]
+        in_img = torch.zeros((3, gt_img.size(1), gt_img.size(2)))
+        if n==0:
+            in_img[:,gt_img.size(1)//2:, gt_img.size(2)//2:]=1
+        if n==1:
+            in_img[:,:gt_img.size(1)//2, :gt_img.size(2)//2]=1
+        in_img = torch.rand_like(in_img)
+        #in_img = in_img*.9+.1*torch.rand_like(in_img)
+        #gt_img=(torch.rand_like(gt_img) > torch.rand_like(gt_img)).float()
+        #gt_img[0,:,:] = 1- gt_img[1,:,:]
+        trainset.append((in_img, gt_img))
+    validationset = trainset
+
+
+
+trainset = tormentor.AugmentedDs(trainset, augmentation_factory=train_augmentation_factory,
+                                          computation_device=p.tormentor_device,add_mask=True)
+validationset = tormentor.AugmentedDs(validationset, augmentation_factory=val_augmentation_factory,
+                                          computation_device=p.tormentor_device,add_mask=True)
+
+trainloader = torch.utils.data.DataLoader(trainset, shuffle=True, batch_size=p.batch_size, num_workers=p.io_threads,drop_last=True)
+
+valloader=torch.utils.data.DataLoader(validationset, shuffle=False, batch_size=1)
+
+generator = create_net(p.arch, p.n_channels, p.n_classes, .99, False, False)
+discriminator = create_net("UNet", 2, 2, .99, False, False)
+param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, generator, discriminator = resume_gan(generator, discriminator, p.resume_fname, p.device)
+
+
+g_optim = torch.optim.Adam(generator.parameters(), lr=p.lr, betas=(.5, 0.999))
+d_optim = torch.optim.Adam(discriminator.parameters(), lr=p.lr, betas=(.5, 0.999))
+
+
+for epoch in range(start_epoch, p.epochs):
+    print(f"Epoch {epoch}")
+    if p.save_freq != 0 and epoch % p.save_freq==0:
+        param_hist[epoch] = param_dict
+        save_gan(param_hist, per_epoch_train_errors, per_epoch_validation_errors, epoch, generator, discriminator)
+    #if p.validate_freq != 0 and epoch % p.validate_freq == 0:
+        #fscore,precision,recall, loss=run_epoch(p, p.val_device, valloader, generator, criterion, optimizer=None, save_images=p.save_images, is_deeplabv3=False, save_input_images=p.save_input_images)
+        #per_epoch_validation_errors[epoch]=fscore,precision,recall,loss
+    #save_outputs=p.trainoutputs_freq != 0 and epoch % p.trainoutputs_freq == 0
+    run_gan_epoch(p, device,trainloader, generator, discriminator, g_optim, d_optim)
+    #fscore, precision, recall, loss=run_epoch(p, p.device, trainloader, generator, criterion, optimizer=optim, save_images=p.save_images, is_deeplabv3=False, save_input_images=p.save_input_images)
+    #per_epoch_train_errors[epoch]=fscore, precision, recall, loss
