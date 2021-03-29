@@ -131,6 +131,32 @@ class Dibco:
                  "https://vc.ee.duth.gr/dibco2019/benchmark/dibco2019_GT_trackB.zip"]
     }
 
+    urls = {
+        "2009_HW": ["http://rr.visioner.ca/assets/dibco_mirror/DIBC02009_Test_images-handwritten.rar",
+                    "http://rr.visioner.ca/assets/dibco_mirror/DIBCO2009-GT-Test-images_handwritten.rar"],
+        "2009_P": ["http://rr.visioner.ca/assets/dibco_mirror/DIBCO2009_Test_images-printed.rar",
+                   "http://rr.visioner.ca/assets/dibco_mirror/DIBCO2009-GT-Test-images_printed.rar"],
+        "2010": ["http://rr.visioner.ca/assets/dibco_mirror/H_DIBCO2010_test_images.rar",
+                 "http://rr.visioner.ca/assets/dibco_mirror/H_DIBCO2010_GT.rar"],
+        "2011_P": ["http://rr.visioner.ca/assets/dibco_mirror/DIBCO11-machine_printed.rar"],
+        "2011_HW": ["http://rr.visioner.ca/assets/dibco_mirror/DIBCO11-handwritten.rar"],
+        "2012": ["http://rr.visioner.ca/assets/dibco_mirror/H-DIBCO2012-dataset.rar"],
+        "2013": ["http://rr.visioner.ca/assets/dibco_mirror/DIBCO2013-dataset.rar"],
+        "2014": ["http://rr.visioner.ca/assets/dibco_mirror/original_images.rar",
+                 "http://rr.visioner.ca/assets/dibco_mirror/GT.rar"],
+        "2016": ["http://rr.visioner.ca/assets/dibco_mirror/DIBCO2016_dataset-original.zip",
+                 "http://rr.visioner.ca/assets/dibco_mirror/DIBCO2016_dataset-GT.zip"],
+        "2017": ["http://rr.visioner.ca/assets/dibco_mirror/DIBCO2017_Dataset.7z",
+                 "http://rr.visioner.ca/assets/dibco_mirror/DIBCO2017_GT.7z"],
+        "2018": ["http://rr.visioner.ca/assets/dibco_mirror/dibco2018_Dataset.zip",
+                 "http://rr.visioner.ca/assets/dibco_mirror/dibco2018-GT.zip"],
+        "2019A":["http://rr.visioner.ca/assets/dibco_mirror/dibco2019_dataset_trackA.zip",
+                 "http://rr.visioner.ca/assets/dibco_mirror/dibco2019_gt_trackA.zip"],
+        "2019B":["http://rr.visioner.ca/assets/dibco_mirror/dibco2019_dataset_trackB.zip",
+                 "http://rr.visioner.ca/assets/dibco_mirror/dibco2019_GT_trackB.zip"]
+    }
+
+
     @staticmethod
     def load_single_stream(compressed_stream):
         input_name2bs = _get_dict(compressed_stream, filter_gt=True)

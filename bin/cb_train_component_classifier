@@ -1,78 +1,44 @@
 #!/usr/bin/env python3
+
 import torch
-import lm_util
-from cb_unet import UNet, evaluate_binarization_improvement, render_confusion, get_otsu_threshold,render_optimal_confusion
-from cb_unet import get_component_ds, get_components, erase_components, get_component_fscore, plot_components
-from dagtasets import Dibco
-import lm_util
+from fargv import fargv
 import sys
-import cv2
-import time
+import PIL
+import cbsegm
+import cbbin
+from cbbin import *
 from matplotlib import pyplot as plt
+import time
+import tqdm
+
 import torchvision
 
-p={
-    "log_freq":10,
-    "lr":.001,
-    "epochs":10,
-    "device":"cuda",
-    "val_device":"{device}",
-    "validate_freq":5,
-    "trainoutputs_freq":5,
-    "batch_size":5,
-    "save_freq":10,
-    "lr":.001,
-    "mask_gt":1,
-    "resume_fname":"binnet_{mode}.pt",
-    "mode":("normal",'One of ["normal","residual","chain","residual_chain"].'),
-    "cc_ds_fname":"./tmp/cc_train_ds.pt"
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+#https://stackoverflow.com/questions/42462431/oserror-broken-data-stream-when-reading-image-file
+
+
+p = {
+    "binary_images": set([]),
+    "annotations": set([]),
+    "boxle_path": "/tmp/boxle.json"
 }
 
-p, _ = lm_util.get_arg_switches(p,sys.argv,return_named_tuple=True)
 
-dibco_transform_gray_inference = torchvision.transforms.Compose([
-    torchvision.transforms.Grayscale(),
-    torchvision.transforms.ToTensor(),
-    lambda x: torch.cat([x, 1 - x])
-])
+#PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_train_component_classifier -binary_images ./data/annotated/chudenice/*bin.png -annotations ./data/annotated/chudenice/*.json
 
-def resume(net):
-    try:
-        save_dict=torch.load(p.resume_fname)
-        per_epoch_train_errors=save_dict["per_epoch_train_errors"]
-        del save_dict["per_epoch_train_errors"]
-        per_epoch_validation_errors=save_dict["per_epoch_validation_errors"]
-        del save_dict["per_epoch_validation_errors"]
-        start_epoch=save_dict["epoch"]
-        del save_dict["epoch"]
-        net.load_state_dict(save_dict)
-        print("Resumed from ",p.resume_fname)
-        return per_epoch_train_errors,per_epoch_validation_errors,start_epoch,net
-    except FileNotFoundError as e:
-        print("Failed to resume from ", p.resume_fname)
-        return {},{},0, net
-
-
-
-#trainset = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2013", "2014", "2016", "2017"], mask_gt=False,train=False)
-#trainset = Dibco(["2009_HW"])
-#ds = Dibco(["2018"], train=False)
-#ds = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2013", "2014", "2016", "2017"], mask_gt=False,train=False)
-
-#dibco_ds = Dibco(["2017"], mask_gt=False,train=False)
-
-try:
-    cc_ds=torch.load(p.cc_ds_fname)
-    print("Loaded {} components from {}.".format(len(cc_ds), p.cc_ds_fname))
-    print(cc_ds[0][0].size(),cc_ds[0][1].size())
-except IOError:
-    #dibco_ds = Dibco(["2009_HW", "2009_P", "2010", "2011_P", "2011_HW", "2012", "2014", "2016", "2017"], mask_gt=False,
-    #                 train=False)
-    dibco_ds = Dibco(["2017"], mask_gt=False, train=False)
-    unet = UNet(n_channels=2, n_classes=2)
-    device = torch.device(p.device)
-    per_epoch_train_errors, per_epoch_validation_errors, start_epoch, unet = resume(unet)
-    cc_ds=get_component_ds(dibco_ds,unet,device)
-    torch.save(cc_ds,open(p.cc_ds_fname,"wb"))
-    print("Saved {} components to {}.".format(len(cc_ds),p.cc_ds_fname))
-
+if __name__ == "__main__":
+    param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
+    p, _ = fargv(p, return_named_tuple=True)
+    assert len(p.binary_images) == len(p.annotations)
+    id_to_binimg = {f.split("/")[-1].split(".")[0]: f for f in p.binary_images}
+    id_to_annotations = {f.split("/")[-1].split(".")[0]: f for f in p.annotations}
+    features = []
+    for id in id_to_binimg.keys():
+        prob_img = np.array(PIL.Image.open(id_to_binimg[id]))
+        boxes, words = cbsegm.load_annotator_json_words(id_to_annotations[id])
+        features.append(cbsegm.extract_bbox_features(boxes, prob_img))
+    features = np.concatenate(features, axis=0)
+    estimator = cbsegm.BoxLikelihoodEstimator()
+    estimator.train(features)
+    estimator.save(p.boxle_path)

@@ -1,58 +1,106 @@
 #!/usr/bin/env python3
 
-#https://github.com/pytorch/pytorch/issues/29893
-import os
-#os.environ["LRU_CACHE_CAPACITY"] = "1"
-import time
-import fargv
 import torch
+from fargv import fargv
+import sys
 import PIL
+import cbbin
 from cbbin import *
+from matplotlib import pyplot as plt
+import time
+import tqdm
 
-p={
-    "n_channels": 3,
+import torchvision
+
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+import cbsegm
+
+#https://stackoverflow.com/questions/42462431/oserror-broken-data-stream-when-reading-image-file
+
+
+p = {
+    "n_channels": 1,
     "n_classes": 2,
-    "output_postfix": ".out.png",
-    "images": set([]),
-    "io_threads": 1,
-    "tormentor_device": "cpu",
+    "io_threads": 0,
     "device": "cuda",
-    "model": "./tmp/2009.pt",
-    "overwrite": False,
-    "max_device_mp": 5.0
+    "arch": [("srunet","dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet","runet","wrunet"),"Model Archtecture"],
+    "cache_binary_postfix":".bin.png",
+    "max_device_mp": 8.0,
+    "resume_fname": "./models/{arch}.pt",
+    "input":set([]),
+    "boxle_path": "/tmp/boxle.json"
 }
-p, _ = fargv.fargv(p, return_named_tuple=True)
 
 
+input_transform = torchvision.transforms.Compose([torchvision.transforms.Grayscale(),torchvision.transforms.ToTensor()])
 
-print("Resuming Model ... ", end="")
+class InferenceDataset():
+    def __init__(self, filename_list, transform=input_transform):
+        self.filename_list = filename_list
+        self.transform = transform
 
-model_param_dict = sorted(torch.load(p.model, map_location="cpu")["param_hist"].items())[-1][1]
-net = create_net(model_param_dict["arch"], model_param_dict["n_channels"], model_param_dict["n_classes"], .99, False, False)
-param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, net = resume(net, p.model, p.device)
-print("done!")
-print("Computing images:")
+    def __getitem__(self, item):
+        try:
+            img = Image.open(self.filename_list[item])
+        except IOError:
+            print("Failed to load ", self.filename_list[item])
+            img = Image.new('RGB', (100, 100))
+        return self.transform(img), item
+
+    def __len__(self):
+        return len(self.filename_list)
 
 
-all_res={}
-total_start=time.time()
-with torch.no_grad():
-    for img_fname in p.images:
-        out_filename = img_fname+p.output_postfix
-        if os.path.isfile(out_filename) and not p.overwrite:
-            print(f"Output file {out_filename} there, keeping.")
-        else:
-            print(f"Computing: {img_fname} ... ", end="")
-            image_time = time.time()
-            img = dibco_transform_color_input(PIL.Image.open(img_fname))
-            img = img.unsqueeze(dim=0)
-            if (img.size(2)*img.size(3))/1000000. > p.max_device_mp:
-                device = "cpu"
-            else:
-                device = p.device
-            img = img.to(device)
-            net = net.to(device)
-            out = net(img).detach().cpu().numpy()
-            out = ((out[0, 0, :, :] > out[0, 1, :, :]) * 255.).astype("uint8")
-            PIL.Image.fromarray(out).convert("RGB").save(out_filename)
-            print(f" Done! saved as:  {out_filename}  duration: {int(1000*(time.time()-image_time))} msec.", end="")
+def binarize_images(p, filenames=None):
+    if filenames is None:
+        filenames = p.input
+    dataset = InferenceDataset(filenames)
+    dataloader = torch.utils.data.DataLoader(dataset, shuffle=False, batch_size=1, num_workers=0)
+
+    if p.arch == "otsu":
+        net = create_net("otsu", 1, 2, .99, False, False)
+    else:
+        model_param_dict = sorted(torch.load(p.resume_fname, map_location="cpu")["param_hist"].items())[-1][1]
+        net = create_net(model_param_dict["arch"], model_param_dict["n_channels"], model_param_dict["n_classes"], .99,
+                         False, False)
+    _, _, _, _, net = resume(net, p.resume_fname, p.device)
+    net = net.eval().to("cuda")
+
+    total_t = time.time()
+    with torch.no_grad():
+        for image, n in dataloader:
+
+            n = n.item()
+            binary_out_fname = dataset.filename_list[n] + p.cache_binary_postfix
+            try:
+                out_gray = torchvision.transforms.ToTensor()(Image.open(binary_out_fname))
+                print(f"{n} Loading cached {binary_out_fname}")
+            except IOError:
+                image_t = time.time()
+                if image.size(2)*image.size(3)*1000**2 > p.max_device_mp:
+                    output = torch.zeros([1,2,image.size(2),image.size(3)])
+                    width = height = int((p.max_device_mp ** .5) * 1000)
+                    for left in range(0, image.size(3), width//2):
+                        right = min([left+width,image.size(3)])
+                        for top in range(0, image.size(2), height//2):
+                            bottom = min([top + height, image.size(2)])
+                            output[:, :, top:bottom, left:right] = net(image[:, :, top:bottom, left:right].to(p.device))
+                            print(f"{n}:[{left:6},{right:6},{top:6},{bottom:6}]")
+                else:
+                    image = image.to(p.device)
+                    output = net(image)
+                print(f"{n} [{image.size(3)}x{image.size(2)}]:{time.time()-image_t:.5} sec. total:{time.time()-total_t:.2} sec.{binary_out_fname}")
+                out_gray = torch.softmax(output,dim=1)[0,0,:,:]
+                torchvision.transforms.ToPILImage()(out_gray).save(binary_out_fname)
+        yield out_gray, dataset.filename_list[n], n
+
+
+#PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_binarize -max_device_mp 1. -input ./data/annotated/blovice/soap-pj_00485_mesto-blovice-1837-1954_0*jp2 ./data/annotated/hroznetin/soap-kv_00240_obec-hroznetin-1949-1954_0*jp2
+
+if __name__ == "__main__":
+    param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
+    p, _ = fargv(p, return_named_tuple=True)
+    device = torch.device(p.device)
+    for img in binarize_images(p):
+        pass

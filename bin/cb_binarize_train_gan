@@ -35,6 +35,7 @@ p={
     "save_images_per_epoch": False,
     "self_pattern": "*png",
     "arch": [("runet","srunet","wrunet","dunet34","dunet18","dunet50","unet", "R2AttUNet", "AttUNet", "R2UNet", "UNet"),"Model Archtecture"],
+    "d_arch":"{arch}",
     "rrds_root": "/home/anguelos/data/rr/focused_segmentation/zips",
     "dataset": [("dibco2017","rrds", "self2017", "dibco2010", "dibco2011", "dibco2012", "dibco2013", "dibco2014", "dibco2016", "dibco2018", "dibco2019", "rnd2009"), "Either Robust Reading Segmentation (rrds), or Document Image Binarization"],
     "val_augmentation": "",
@@ -117,7 +118,6 @@ def resume_gan(generator, discriminator, resume_fname, device):
 def run_gan_epoch(p, device, dataloader, generator, discriminator, g_optimizer, d_optimizer):
     discriminative_criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
     adversarial_criterion = torch.nn.BCELoss()
-
     iters = 0
     real_label = 1.
     fake_label = 0.
@@ -127,6 +127,10 @@ def run_gan_epoch(p, device, dataloader, generator, discriminator, g_optimizer, 
     generator.train()
     g_losses = []
     d_losses = []
+    fscores = []
+    precisions = []
+    recalls = []
+    losses = []
     for i, data in enumerate(dataloader, 0):
         print(f"iteration: {i}  ", end="")
         input, gt_img, mask = data
@@ -158,12 +162,12 @@ def run_gan_epoch(p, device, dataloader, generator, discriminator, g_optimizer, 
         output = torch.sigmoid(discriminator(torch.exp(torch.softmax(fake.detach()[:, :, :, :],dim=1))))
         dicriminative_loss = discriminative_criterion(fake, gt_img).sum()
         # Calculate D's loss on the all-fake batch
-        errD_fake = adversarial_criterion(output[:,1:,:,:], label).sum()
+        fake_d_loss = adversarial_criterion(output[:, 1:, :, :], label).sum()
         # Calculate the gradients for this batch
-        errD_fake.backward()
+        fake_d_loss.backward()
         d_accuracy_true = output.mean().item()
         # Add the gradients from the all-real and all-fake batches
-        errD = real_d_loss + errD_fake
+        errD = real_d_loss + fake_d_loss
         # Update D
         d_optimizer.step()
         ############################
@@ -176,29 +180,40 @@ def run_gan_epoch(p, device, dataloader, generator, discriminator, g_optimizer, 
         # Calculate G's loss based on this output
         #torch.softmax(prediction, dim =1)
         adversarial_loss = adversarial_criterion(output[:, 1:, :, :], label).sum()
-        errG = p.adversarial_loss_coef * adversarial_loss + (1-p.adversarial_loss_coef) * dicriminative_loss
+        g_loss = p.adversarial_loss_coef * adversarial_loss + (1-p.adversarial_loss_coef) * dicriminative_loss
 
         # Calculate gradients for G
-        errG.backward()
+        g_loss.backward()
 
         D_G_z2 = output.mean().item()
         # Update G
         g_optimizer.step()
 
         # Save Losses for plotting later
-        g_losses.append(errG.item())
+        g_losses.append(g_loss.item())
         d_losses.append(errD.item())
 
         # Check how the generator is doing by saving G's output on fixed_noise
         iters += 1
+        confusion, precision, recall, fscore = render_confusion(output[0, 0, :, :] < output[0, 1, :, :],
+                                                                gt_img[0, 0, :, :] < .5, mask[0, 0, :, :] > .5)
+        fscores.append(fscore)
+        precisions.append(precision)
+        recalls.append(recall)
+        losses.append(loss.item() / gt_img.view(-1).size()[0])
+
         print(f"G:{g_losses[-1]}     D:{d_losses[-1]}")
         if iters % 10 == 0:
             Image.fromarray((gt_img[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(
                 f"/tmp/gt.png")
             Image.fromarray((torch.exp(fake[0, 1, :, :]).detach().cpu().numpy() * 255)).convert('RGB').save(
                 f"/tmp/pred.png")
-
     print(f"Generator:{sum(g_losses)/len(g_losses):10.5} \t Discriminator:{sum(d_losses)/len(d_losses):10.5} \t ")
+    fscore = sum(fscores)/len(fscores)
+    precision = sum(precisions)/len(precisions)
+    recall = sum(recall)/len(recall)
+    losses = sum(losses)/len(losses)
+    return fscore, precision, recall, losses, sum(d_losses)/len(d_losses)
 
 if p.train_augmentation != "":
     train_augmentation_factory = eval(p.train_augmentation)
@@ -289,7 +304,7 @@ trainloader = torch.utils.data.DataLoader(trainset, shuffle=True, batch_size=p.b
 valloader=torch.utils.data.DataLoader(validationset, shuffle=False, batch_size=1)
 
 generator = create_net(p.arch, p.n_channels, p.n_classes, .99, False, False)
-discriminator = create_net("UNet", 2, 2, .99, False, False)
+discriminator = create_net(p.d_arch, 2, 2, .99, False, False)
 param_hist, per_epoch_train_errors, per_epoch_validation_errors, start_epoch, generator, discriminator = resume_gan(generator, discriminator, p.resume_fname, p.device)
 
 
@@ -302,10 +317,12 @@ for epoch in range(start_epoch, p.epochs):
     if p.save_freq != 0 and epoch % p.save_freq==0:
         param_hist[epoch] = param_dict
         save_gan(param_hist, per_epoch_train_errors, per_epoch_validation_errors, epoch, generator, discriminator)
-    #if p.validate_freq != 0 and epoch % p.validate_freq == 0:
+    if p.validate_freq != 0 and epoch % p.validate_freq == 0:
         #fscore,precision,recall, loss=run_epoch(p, p.val_device, valloader, generator, criterion, optimizer=None, save_images=p.save_images, is_deeplabv3=False, save_input_images=p.save_input_images)
+        per_epoch_validation_errors[epoch] = validate_epoch(p, p.val_device, valloader, generator)
         #per_epoch_validation_errors[epoch]=fscore,precision,recall,loss
     #save_outputs=p.trainoutputs_freq != 0 and epoch % p.trainoutputs_freq == 0
-    run_gan_epoch(p, device,trainloader, generator, discriminator, g_optim, d_optim)
+    fscore, precision, recall, g_loss, d_loss = run_gan_epoch(p, device,trainloader, generator, discriminator, g_optim, d_optim)
+    per_epoch_train_errors[epoch] = fscore, precision, recall, g_loss
     #fscore, precision, recall, loss=run_epoch(p, p.device, trainloader, generator, criterion, optimizer=optim, save_images=p.save_images, is_deeplabv3=False, save_input_images=p.save_input_images)
     #per_epoch_train_errors[epoch]=fscore, precision, recall, loss

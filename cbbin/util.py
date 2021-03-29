@@ -5,6 +5,10 @@ import fastai.vision
 from .unet import UNet
 from .unet2 import R2AttU_Net, AttU_Net, R2U_Net, U_Net
 import iunets
+import time
+import tqdm
+import torchvision
+from matplotlib import pyplot as plt
 from PIL import Image, ImageOps
 
 import torch
@@ -152,6 +156,45 @@ class TiledDataset(object):
     def apply_network(self, network, sample_pos=0, datum_idx=0):
         images = [sample[datum_idx] for sample in self.sample_as_list(sample_pos)]
 
+
+
+
+def validate_epoch(p, device, loader, net, save_images=True, save_input_images=False, file_prefix="val"):
+    with torch.set_grad_enabled(False):
+        net = net.to(device)
+        net.eval()
+        fscores = []
+        precisions = []
+        recalls = []
+        losses = []
+        t=time.time()
+        for n, data in tqdm.tqdm(enumerate(loader)):
+            if len(data) == 3:
+                (input_img, gt, mask) = data
+            elif len(data) == 2:
+                input_img, gt = data
+                mask = torch.ones_like(gt[:,:1,:,:])
+            input_img, gt, mask = input_img.to(device), gt.to(device), mask.to(device)
+
+            prediction = net(input_img)
+            prediction = torch.nn.functional.softmax(prediction, dim=1)
+            loss = loss.sum()
+            confusion, precision, recall, fscore = render_confusion(prediction[0,0,:,:]<prediction[0,1,:,:], gt[0, 0, :, :] < .5, mask[0,0,:,:] > .5)
+
+            fscores.append(fscore)
+            precisions.append(precision)
+            recalls.append(recall)
+            losses.append(loss.item()/gt.view(-1).size()[0])
+            if save_images:
+                conf_img=Image.fromarray((confusion[:,:,[2,1,0]]).astype("uint8")).convert('RGB')
+                conf_img.save(f"/tmp/{file_prefix}_{n}_conf.png")
+                prediction = torch.softmax(prediction[0, :, :, :], dim=0)
+                Image.fromarray((prediction[0,:,:].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{file_prefix}_{n}_output.png")
+                Image.fromarray((mask[0, 0, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{file_prefix}_{n}_mask.png")
+                Image.fromarray((gt[0, 1, :, :].detach().cpu().numpy() * 255)).convert('RGB').save(f"/tmp/{file_prefix}_{n}_gt.png")
+            if save_input_images:
+                torchvision.transforms.ToPILImage()(input_img[0,:,:,:].detach().cpu()).save(f"/tmp/{file_prefix}_{n}_input.png")
+    return sum(fscores) / len(fscores),sum(precisions) / len(precisions), sum(recalls) / len(recalls),sum(losses) / len(losses)
 
 
 
