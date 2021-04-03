@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import cbphocnet
+import fargv
+import torch
+
+
+p = {
+    "resume_path":"/tmp/phocnet.pt",
+    "unigrams":"abcdefghijklmnopqrstuvwxyz0123456789",
+    "pyramid_levels":[1,2,3,5,7,11],
+    "input_channels": 3,
+    "lr":.001,
+    "batch_size": 128,
+    "input_width": -1,
+    "input_height": -1,
+    "device": "cuda"
+}
+
+def evaluate(net, dataloader):
+    with torch.no_grad():
+        for word_image, embedding in dataloader:
+            pass
+    return 1.
+
+def run_epoch(net, dataloader, optimizer, criterium, device):
+    for word_image, embedding in dataloader:
+        word_image, embedding = word_image.to(device), embedding.to(device)
+        optimizer.zerograd()
+        output = net(word_image)
+        loss = criterium(word_image, output).sum()
+        loss.backward()
+        optimizer.step()
+
+
+
+p, _ = fargv.fargv(p)
+
+if p.input_width == -1 and p.input_height == -1:
+    input_size = None
+elif p.input_width == -1 or p.input_height == -1:
+    raise ValueError
+else:
+    input_size = (p.input_width, p.input_height)
+
+net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels)
+net, history = cbphocnet.PHOCNet.resume(p.resume_path, net=net)
+
+
+print(repr(p))
