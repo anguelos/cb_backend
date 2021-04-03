@@ -44,28 +44,30 @@ def get_inter_union(boxes_ltrb_cols: np.array, boxes_ltrb_rows: np.array):
     top_row = boxes_ltrb_rows[:, 1:2].T
     bottom_row = boxes_ltrb_rows[:, 3:4].T
 
-    width_col = right_col - left_col
-    height_col = right_row - left_col
+    width_col = 1 + right_col - left_col
+    height_col = 1 + bottom_col - top_col
     surface_col = width_col * height_col
 
-    width_row = right_row - left_row
-    height_row = right_row - left_row
+    width_row = 1 + right_row - left_row
+    height_row = 1 + bottom_row - top_row
     surface_row = width_row * height_row
 
-    h_intersect = np.minimum(right_row, right_col) - np.maximum(left_row, left_col)
+    h_intersect = 1 + np.minimum(right_row, right_col) - np.maximum(left_row, left_col)
     h_intersect = (h_intersect > 0) * h_intersect
 
-    v_intersect = np.minimum(bottom_row, bottom_col) - np.minimum(top_row, top_col)
+    v_intersect = 1 + np.minimum(bottom_row, bottom_col) - np.maximum(top_row, top_col)
     v_intersect = (v_intersect > 0) * v_intersect
 
     intersection = h_intersect * v_intersect
 
-    union = surface_col + surface_row - intersection
+    union = (surface_col + surface_row) - intersection
     return intersection, union
 
 
-def get_iou(boxes_ltrb:np.array, epsilon=.000001):
-    intersection, union = get_inter_union(boxes_ltrb)
+def get_iou(row_boxes_ltrb: np.array, col_boxes_ltrb=None, epsilon=.000001):
+    if col_boxes_ltrb is None:
+        col_boxes_ltrb = row_boxes_ltrb
+    intersection, union = get_inter_union(row_boxes_ltrb, col_boxes_ltrb)
     iou = intersection/(union + epsilon)
     return iou
 

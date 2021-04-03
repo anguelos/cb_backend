@@ -27,17 +27,12 @@ p = {
 
 if __name__ == "__main__":
     p,_= fargv(p)
-    print(p)
     id_to_gt={f[f.rfind("/")+1:].split(".")[0] :f for f in p.gt}
     id_to_proposals={f[f.rfind("/")+1:].split(".")[0] :f for f in p.proposals}
-    print(sorted(id_to_gt.keys()))
-    print()
-    print(sorted(id_to_proposals.keys()))
-    print()
     assert set(id_to_gt.keys())==set(id_to_proposals.keys())
     for id in id_to_proposals.keys():
         gt_boxes,_ = cbsegm.load_annotator_json_words(id_to_gt[id])
         proposal_boxes,_ = cbsegm.load_annotator_json_words(id_to_proposals[id])
         intersection, union = cbsegm.get_inter_union(proposal_boxes, gt_boxes)
         correct=(intersection/(.000001+union))>p.iou_threshold
-        print("Precision:",correct.max(axis=0).mean()," Recall:",correct.max(axis=1).mean())
+        #print("Precision:",correct.max(axis=0).mean()," Recall:",correct.max(axis=1).mean())

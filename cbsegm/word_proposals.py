@@ -7,11 +7,10 @@ def word_proposals(prob_img, box_likelihood_estimator:BoxLikelihoodEstimator, th
     modality_id = 0
     for threshold in thresholds:
         for rlsa_gap in rlsa_gaps:
-
             bin_img = (prob_img < threshold).astype(np.uint8)
             smeared_img = rlsa(bin_img, rlsa_gap)
             label, bbox, centroid, component_size = connected_components(smeared_img)
-            print(f"rlsa:{rlsa_gap}, threshold:{threshold}, nb_components:{bbox.shape[0]}, bin_img:{bin_img.mean()}, smeared_img:{smeared_img.mean()}, ")
+            #print(f"rlsa:{rlsa_gap}, threshold:{threshold}, nb_components:{bbox.shape[0]}, bin_img:{bin_img.mean()}, smeared_img:{smeared_img.mean()}, ")
             features.append(extract_bbox_features(bbox,smeared_img))
             modality_id += 1
     features = np.concatenate(features, axis=0)
@@ -19,5 +18,5 @@ def word_proposals(prob_img, box_likelihood_estimator:BoxLikelihoodEstimator, th
     likelihoods = box_likelihood_estimator(features)
 
     keep = nms(bboxes, likelihoods, iou_threshold)
-    print("Proposals:", likelihoods.shape[0], "   Keep", keep.shape[0])
+    #print("Proposals:", likelihoods.shape[0], "   Keep", keep.shape[0])
     return bboxes[keep, :]

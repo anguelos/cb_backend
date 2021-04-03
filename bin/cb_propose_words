@@ -22,12 +22,13 @@ import cbsegm
 
 p = {
     "prob_images":set([]),
-    "target_postfix":".words.pickle",
-    "target_prefix":"",
-    "boxle_path": "/tmp/boxle.json",
-    "rlsa_distances": "[0,4,8, 16]",
-    "thresholds":"[128]",
-    "nms_threshold":.95
+    "target_postfix": ".words.pickle",
+    "target_prefix": "",
+    "box_model": "/tmp/box_iou.pt",
+    "rlsa_distances": "[0,2,4,6,12,18,24]",
+    "thresholds": "[32, 64, 128, 224]",
+    "nms_threshold": .6,
+    "device": "cuda"
 }
 
 # PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_propose_words -prob_images ./data/annotated/*/*bin.png -target_postfix .words.json
@@ -35,10 +36,17 @@ p = {
 if __name__ == "__main__":
     param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
     p, _ = fargv(p, return_named_tuple=True)
-    box_likelihood_estimator = cbsegm.BoxLikelihoodEstimator.load(p.boxle_path)
+    try:
+        net = cbsegm.BoxIOUPredictor()
+        net.load_state_dict(torch.load(p.box_model)["state"])
+        net.train(False)
+        net = net.to(p.device)
+        box_predictor = lambda x: torch.exp(net(torch.tensor(x,dtype=torch.float,device=p.device))[:,1]).detach().cpu().numpy()
+    except FileNotFoundError:
+        box_predictor = lambda x: np.random.rand(x.shape[0])
     thresholds = eval(p.thresholds)
     rlsa_distances = eval(p.rlsa_distances)
-    for img_name in p.prob_images:
+    for img_name in tqdm.tqdm(p.prob_images):
         id = img_name[img_name.rfind("/"):].split(".")[0]
         if p.target_prefix=="":
             target_root=img_name[:img_name.rfind("/")]
@@ -47,10 +55,8 @@ if __name__ == "__main__":
 
         target_path=f"{target_root}/{id}{p.target_postfix}"
         prob_img = PIL.Image.open(img_name)
-        #prob_img.show()
         prob_img = np.array(prob_img)
-        print("prob_img:", np.unique(prob_img))
-        proposals = cbsegm.word_proposals(prob_img, box_likelihood_estimator, thresholds=thresholds, rlsa_gaps=rlsa_distances, iou_threshold=p.nms_threshold)
+        proposals = cbsegm.word_proposals(prob_img, box_predictor, thresholds=thresholds, rlsa_gaps=rlsa_distances, iou_threshold=p.nms_threshold)
         if p.target_postfix.endswith("pickle"):
             with open(target_path, "wb") as fd:
                 pickle.dump(proposals, fd)

@@ -20,25 +20,109 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 p = {
     "binary_images": set([]),
-    "annotations": set([]),
-    "boxle_path": "/tmp/boxle.json"
+    "groundtruth": set([]),
+    "proposals": set([]),
+    "iou_threshold": .5,
+    "model_path": "/tmp/box_iou.pt",
+    "dataset_path": "/tmp/cc_dataset.pt",
+    "batch_size": 128,
+    "lr":.01,
+    "device":"cuda",
+    "epochs": 100,
+    "save_freq": 1,
 }
 
-
 #PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_train_component_classifier -binary_images ./data/annotated/chudenice/*bin.png -annotations ./data/annotated/chudenice/*.json
+
+def run_epoch(net, dataloader, optimizer,criterium, device):
+    net.train(optimizer!=None)
+    net = net.to(device)
+    #criterium1 = torch.nn.NLLLoss(weight=torch.tensor([1., 5.], device=device), reduction='none')
+    #criterium = lambda x, y: criterium1(x, (y > .5).long()) * ((y > .5).long() + (y < .25).long())
+    predictions = []
+    targets = []
+    losses = []
+    for features, (iou, gt) in dataloader:
+        if optimizer is not None:
+            optimizer.zero_grad()
+        features, iou, gt = features.to(device), iou.to(device), gt.to(device)
+        prediction_logits = net(features)
+        valid_samples = gt<2
+        #gt = (iou > .5).long()
+        loss = criterium(prediction_logits[valid_samples,:], gt[valid_samples])
+        loss = loss.sum()
+        losses.append(loss.detach().cpu().item())
+        if optimizer is not None:
+            loss.backward()
+            optimizer.step()
+        predictions.append((prediction_logits[:, 1]>prediction_logits[:, 0]).detach().cpu().numpy())
+        targets.append(gt.detach().cpu().numpy())
+
+
+    predictions = np.concatenate(predictions, axis=0)
+    targets = np.concatenate(targets, axis=0)
+    accuracy = (predictions==targets).mean()
+    precision = ((predictions == 1) & (targets == 1)).sum() / ((targets == 1).sum()+.0000001)
+    recall = ((predictions == 1) & (targets == 1)).sum() / ((predictions == 1).sum()+.000001)
+    fscore = (2 * precision * recall) / (precision + recall + .0000000000001)
+    return accuracy, precision, recall, fscore, sum(losses) / len(losses)
+
+
+def save(filename, net, accuracies, precisions, recalls, fscores, losses):
+    dictionary = {"state":net.state_dict(),"accuracies":accuracies, "precisions":precisions,"recalls":recalls,"fscores":fscores,"losses":losses}
+    torch.save(dictionary, filename)
+
+def resume(filename, net):
+    try:
+        dictionary = torch.load(filename)
+        net.load_state_dict(dictionary["state"])
+        return net, dictionary["accuracies"], dictionary["precisions"], dictionary["recalls"], dictionary["fscores"], dictionary["losses"]
+    except FileNotFoundError:
+        return net, [], [], [], [], []
+
+
+iou2class = lambda x:((x>.5).long()+((x<.5).long()*(x>.25).long())*2).long()
+
 
 if __name__ == "__main__":
     param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
     p, _ = fargv(p, return_named_tuple=True)
-    assert len(p.binary_images) == len(p.annotations)
-    id_to_binimg = {f.split("/")[-1].split(".")[0]: f for f in p.binary_images}
-    id_to_annotations = {f.split("/")[-1].split(".")[0]: f for f in p.annotations}
-    features = []
-    for id in id_to_binimg.keys():
-        prob_img = np.array(PIL.Image.open(id_to_binimg[id]))
-        boxes, words = cbsegm.load_annotator_json_words(id_to_annotations[id])
-        features.append(cbsegm.extract_bbox_features(boxes, prob_img))
-    features = np.concatenate(features, axis=0)
-    estimator = cbsegm.BoxLikelihoodEstimator()
-    estimator.train(features)
-    estimator.save(p.boxle_path)
+    try:
+        assert p.proposals == p.groundtruth == p.binary_images == set([])
+        dataset = torch.load(p.dataset_path)
+        print("Loaded:", p.dataset_path)
+    except AssertionError:
+        print("Failed to load:", p.dataset_path)
+        dataset = cbsegm.BoxIOUPredictor.make_supervised_dataset(gt_bbox_paths = p.groundtruth,
+                                                                 proposed_bbox_paths=p.proposals,
+                                                                 bin_img_paths=p.binary_images, iou_threshold=-1)
+        torch.save(dataset, p.dataset_path)
+    dataset = [(datum[0], (datum[1],iou2class(datum[1]))) for datum in dataset]
+    weights = len(dataset)/torch.bincount(torch.tensor([d[1][1] for d in dataset])).float()
+    criterium = torch.nn.NLLLoss(weight=weights[:2].to(p.device), reduction='none')
+
+    trainset_idx = np.nonzero(np.arange(len(dataset)) % 10 != 0)[0].tolist()
+    testset_idx = np.nonzero(np.arange(len(dataset)) % 10 == 0)[0].tolist()
+    trainset = [dataset[n] for n in trainset_idx]
+    testset = [dataset[n] for n in testset_idx]
+    train_dataloader = torch.utils.data.DataLoader(trainset, shuffle=True, batch_size=p.batch_size)
+    test_dataloader = torch.utils.data.DataLoader(testset, shuffle=True, batch_size=p.batch_size)
+    net = cbsegm.BoxIOUPredictor()
+
+    net, accuracies, precisions, recalls, fscores, losses = resume(p.model_path, net)
+    optimizer = torch.optim.Adam(net.parameters(), lr=p.lr)
+    epoch = len(accuracies)
+    for epoch in range(epoch, p.epochs):
+        train_outputs = run_epoch(net, train_dataloader, optimizer=optimizer, criterium=criterium,  device=p.device)
+        test_outputs = run_epoch(net, train_dataloader, optimizer=None, criterium=criterium, device=p.device)
+        accuracies.append([train_outputs[0],test_outputs[0]])
+        precisions.append([train_outputs[1], test_outputs[1]])
+        recalls.append([train_outputs[2], test_outputs[2]])
+        fscores.append([train_outputs[3], test_outputs[3]])
+        losses.append([train_outputs[4], test_outputs[4]])
+        if epoch % p.save_freq == 0:
+            save(p.model_path, net, accuracies, precisions, recalls, fscores, losses)
+        print(f"{epoch}/{p.epochs} Acc:{accuracies[-1][0]*100:.4}/{accuracies[-1][1]*100:.4}   Recall:{recalls[-1][0]*100:.4}/{recalls[-1][1]*100:.4}  FM:{fscores[-1][0]*100:.4}/{fscores[-1][1]*100:.4}  losses:{losses[-1][0]}/{losses[-1][1]}")
+
+
+
