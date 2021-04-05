@@ -20,8 +20,8 @@ p = {
     "momentum": .9,
     "weight_decay": 0.00005,
     "loss":("bce", "cosine"),
-    "batch_size": 1,
-    "pseudo_batch_size": 10,
+    "batch_size": 10,
+    "pseudo_batch_size": 1,
     "epochs": 100,
     "device": "cuda",
     "img_glob":"./data/fake_db/*/*jp2",
@@ -68,7 +68,8 @@ def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_b
     net.train(True)
     dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=batch_size)
     losses = []
-    for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), leave=False,desc="Training"):
+    data_iter=tqdm.tqdm(enumerate(dataloader), leave=False,desc="Training")
+    for n, (word_image, embedding) in data_iter:
         word_image, embedding = word_image.to(device), embedding.to(device)
         if optimizer is not None and n % pseudo_batch_size == 0:
             optimizer.zero_grad()
@@ -78,6 +79,9 @@ def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_b
         if optimizer is not None and n % pseudo_batch_size == pseudo_batch_size-1:
             optimizer.step()
         losses.append(loss.detach().cpu().item())
+        description = f"Training [Loss:{losses[-1]:.8}]"
+        trange.set_description(description, refresh=True)
+
     optimizer.step()
     return sum(losses)/len(losses)
 
@@ -88,12 +92,12 @@ def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, 
     if epoch % params.validate_freq == 0:
         t = time.time()
         accuracy = evaluate_epoch(net, testset, params.device)
-        print(f"Evaluted Accuracy:{accuracy*100:.5} in {1000*(time.time()-t):.7} msec.")
+        #print(f"Evaluted Accuracy:{accuracy*100:.5} in {1000*(time.time()-t):.7} msec.")
     train_state["accuracies"].append(accuracy)
     train_state["losses"].append(loss)
     train_state["batch_sizes"].append(params.batch_size)
     train_state["pseudo_batch_sizes"].append(params.pseudo_batch_size)
-    train_state["parameters"]=params
+    train_state["parameters"] = params._asdict()
     train_state["start_times"].append(start_time)
     train_state["end_times"].append(time.time())
     if epoch % params.save_freq == 0:
@@ -106,7 +110,7 @@ if __name__ == "__main__":
     if p.fixed_size == "0x0":
         fixed_size = None
     else:
-        fixed_size = None
+        fixed_size = tuple([int(v) for v in p.fixed_size.split("x")])
 
     if p.loss == "bce":
         criterium = torch.nn.BCEWithLogitsLoss(size_average=True)
@@ -122,14 +126,12 @@ if __name__ == "__main__":
         train_state = {"accuracies":[],"losses":[],"batch_sizes":[],"pseudo_batch_sizes":[],"start_times":[],
                        "end_times":[],"parameters":p}
 
-
     if p.optimizer == 'sgd':
         optimizer = torch.optim.SGD(net.parameters(), p.lr, momentum=p.momentum, weight_decay=p.weight_decay)
     elif p.optimizer == 'adam':
         optimizer = torch.optim.Adam(net.parameters(), p.lr, weight_decay=p.weight_decay)
     else:
         raise ValueError
-
     trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
     testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net,
                                   keep_singletons=False, max_items=p.test_set_max_items)
@@ -137,4 +139,4 @@ if __name__ == "__main__":
     for epoch in trange:
         train_state = run_epoch(epoch=epoch, net=net, trainset=trainset, testset=testset, optimizer=optimizer, criterium=criterium, train_state=train_state, params=p)
         description = f"Acc.:{train_state['accuracies']*100:.5}   Loss:{train_state['losses']:.7}"
-        trange.set_description(description, update=True)
+        trange.set_description(description, refresh=True)

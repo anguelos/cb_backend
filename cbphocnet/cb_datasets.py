@@ -9,6 +9,7 @@ import glob
 from random import Random
 import collections
 import os
+import tqdm
 
 from .phoc import build_phoc_descriptor
 
@@ -17,12 +18,9 @@ class CBDataset(object):
     "wget http://rr.visioner.ca/assets/cbws/data.tar.gz"
     @staticmethod
     def compile(id2gt, id2img, fixed_size, pyramids, unigrams, input_channels, keep_singletons):
-        #build_phoc_descriptor
         data = []
-        for id in id2gt.keys():
+        for id in tqdm.tqdm(id2gt.keys(), desc=f"Compiling Ds"):
             gt = json.load(open(id2gt[id]))
-            #page = torch.tensor(np.array(Image.open(id2img[id]),dtype=np.float) / 255.)
-            #page = page.transpose(0, 2).transpose(1, 2)
             page = Image.open(id2img[id])
             if input_channels == 1:
                 page=page.convert('L')
@@ -33,14 +31,16 @@ class CBDataset(object):
             word_imgs = []
             word_captions = []
             for n in range(len(gt["captions"])):
-                caption = gt["captions"][n].lower()
+                caption = gt["captions"][n]
                 if caption.startswith("W@"):
-                    caption = unidecode.unidecode(caption[2:])
+                    caption = unidecode.unidecode(caption[2:].lower())
                     l, t, r, b = gt["rectangles_ltrb"][n]
                     word = page.crop((l, t, r, b))
                     if fixed_size is not None:
                         word = word.resize(fixed_size)
                     word = torch.from_numpy(np.array(word, dtype=np.float) / 255.).float()
+                    if len(word.size()) == 2:
+                        word = word.unsqueeze(dim=2)
                     word = word.transpose(0, 2).transpose(1, 2)
                     word_imgs.append(word)
                     word_captions.append(caption)
@@ -52,23 +52,28 @@ class CBDataset(object):
         else:
             occurrences = collections.Counter([d[2] for d in data])
             res = [d[:2] for d in data if occurrences[d[2]]>1]
-            print(f"Words:{len(data)}, Unique:{len(occurrences)}, Non singleton:{len([k for k,v in occurrences.items() if v>1])}  keeping: {len(res)}")
+            #print(f"Words:{len(data)}, Unique:{len(occurrences)}, Non singleton:{len([k for k,v in occurrences.items() if v>1])}  keeping: {len(res)}")
             return res
 
 
-    def __init__(self, img_glob, gt_glob, cache_fname="/tmp/cb_ds_{}.pt", net=None, train=True, test_glob="*/blovice_1/*", input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
+    def __init__(self, img_glob, gt_glob, cache_fname="/tmp/cb_ds_T{}_C{}_{}x{}.pt", net=None, train=True, test_glob="*/blovice_1/*", input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
                  unigrams=string.digits+string.ascii_lowercase, max_items=-1, keep_singletons=True):
-        if cache_fname and os.path.exists(cache_fname.format(int(train==False))):
-            cache_fname = cache_fname.format(int(train==False))
+        if net is not None:
+            phoc_pyramids = net.params["unigram_pyramids"]
+            unigrams = net.params["unigrams"]
+            input_channels = net.params["input_channels"]
+            fixed_size = net.params["fixed_size"]
+        if cache_fname:
+            if fixed_size is None:
+                width, height = [0,0]
+            else:
+                width, height = fixed_size
+            cache_fname = cache_fname.format(int(train),input_channels, width,height)
+        if os.path.exists(cache_fname):
             self.data = torch.load(cache_fname)
         else:
             img_paths = glob.glob(img_glob)
             gt_paths = glob.glob(gt_glob)
-            if net is not None:
-                phoc_pyramids = net.params["unigram_pyramids"]
-                unigrams = net.params["unigrams"]
-                input_channels = net.params["input_channels"]
-                fixed_size = net.params["fixed_size"]
             if test_glob:
                 if train: # test_glob and test
                     gt_paths = sorted(set(gt_paths) - set(glob.glob(test_glob)))
@@ -96,7 +101,6 @@ class CBDataset(object):
             if max_items > 0:
                 self.data = self.data[:max_items]
             if cache_fname:
-                cache_fname=cache_fname.format(int(train==False))
                 torch.save(obj=self.data, f=cache_fname)
 
     def __getitem__(self, item):
