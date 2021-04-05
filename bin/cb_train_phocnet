@@ -11,11 +11,10 @@ p = {
     "resume_path":"./models/phocnet_{fixed_size}.pt",
     "unigrams":"abcdefghijklmnopqrstuvwxyz0123456789",
     "pyramid_levels":[1, 2, 3, 4, 5],
-    "input_channels": 3,
+    "input_channels": 1,
     "lr":.0001,
     "batch_size": 1,
     "fixed_size":"0x0",
-    "delta":.00000001,
     "optimizer": ("adam", "sgd"),
     "momentum": .9,
     "weight_decay": 0.00005,
@@ -128,9 +127,9 @@ if __name__ == "__main__":
                        "end_times":[],"parameters":p}
 
     if p.optimizer == 'sgd':
-        optimizer = torch.optim.SGD(net.parameters(), p.lr, momentum=p.momentum, weight_decay=p.weight_decay)
+        optimizer = torch.optim.SGD(net.parameters(), lr=p.lr, momentum=p.momentum, weight_decay=p.weight_decay)
     elif p.optimizer == 'adam':
-        optimizer = torch.optim.Adam(net.parameters(), p.lr, weight_decay=p.weight_decay)
+        optimizer = torch.optim.Adam(net.parameters(), lr=p.lr, weight_decay=p.weight_decay)
     else:
         raise ValueError
     trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
