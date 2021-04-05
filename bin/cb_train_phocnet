@@ -90,6 +90,7 @@ def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, 
     start_time = time.time()
     if epoch % params.validate_freq == 0:
         accuracy = evaluate_epoch(net, testset, params.device)
+        print("acc.", accuracy)
     else:
         accuracy = train_state["accuracies"][-1] if train_state["accuracies"] else 0
     loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,batch_size=params.batch_size,pseudo_batch_size=params.pseudo_batch_size)
