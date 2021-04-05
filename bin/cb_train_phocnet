@@ -12,8 +12,8 @@ p = {
     "unigrams":"abcdefghijklmnopqrstuvwxyz0123456789",
     "pyramid_levels":[1, 2, 3, 5, 7, 11],
     "input_channels": 3,
-    "lr":.001,
-    "batch_size": 128,
+    "lr":.0001,
+    "batch_size": 1,
     "fixed_size":"0x0",
     "delta":.00000001,
     "optimizer": ("adam", "sgd"),
@@ -28,7 +28,7 @@ p = {
     "gt_glob": "./data/fake_db/*/*gt.json",
     "testset_glob":"./data/fake_db/blovice_1/*",
     "test_set_max_items": 1000,
-    "validate_freq":5,
+    "validate_freq":1,
     "save_freq":1,
 }
 
@@ -71,29 +71,28 @@ def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_b
     data_iter=tqdm.tqdm(enumerate(dataloader), leave=False,desc="Training")
     for n, (word_image, embedding) in data_iter:
         word_image, embedding = word_image.to(device), embedding.to(device)
-        if optimizer is not None and n % pseudo_batch_size == 0:
+        if n % pseudo_batch_size == 0:
             optimizer.zero_grad()
         output = net(word_image)
         loss = criterium(output, embedding).sum()
         loss.backward()
-        if optimizer is not None and n % pseudo_batch_size == pseudo_batch_size-1:
+        if n % pseudo_batch_size == pseudo_batch_size-1:
             optimizer.step()
         losses.append(loss.detach().cpu().item())
         if n % 100 == 0:
-            description = f"Training [Loss:{sum(losses[-1])/(1+len(losses)):.8}]"
+            l=(sum(losses) / (1 + len(losses)))
+            description = f"Training [Loss:{l:.8}]"
             data_iter.set_description(description, refresh=True)
-
-    optimizer.step()
+    optimizer.step() # updating the last iterations
     return sum(losses)/len(losses)
 
 def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, params):
     start_time = time.time()
-    loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,batch_size=params.batch_size,pseudo_batch_size=params.pseudo_batch_size)
-    accuracy = train_state["accuracies"][-1] if train_state["accuracies"] else 0
     if epoch % params.validate_freq == 0:
-        t = time.time()
         accuracy = evaluate_epoch(net, testset, params.device)
-        #print(f"Evaluted Accuracy:{accuracy*100:.5} in {1000*(time.time()-t):.7} msec.")
+    else:
+        accuracy = train_state["accuracies"][-1] if train_state["accuracies"] else 0
+    loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,batch_size=params.batch_size,pseudo_batch_size=params.pseudo_batch_size)
     train_state["accuracies"].append(accuracy)
     train_state["losses"].append(loss)
     train_state["batch_sizes"].append(params.batch_size)
