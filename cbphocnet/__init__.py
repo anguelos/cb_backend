@@ -7,3 +7,4 @@ from .phoc import build_correlated_phoc, build_phoc_descriptor, get_unigrams_fro
 from .gpp import GPP
 from .phocnet import PHOCNet
 from .phoc import build_phoc_descriptor
+from .losses import CosineLoss

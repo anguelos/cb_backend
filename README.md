@@ -1,3 +1,11 @@
+Download annotated words:
+
+```bash
+wget http://rr.visioner.ca/assets/cbws/data.tar.gz
+tar -xpvzf data.tar.gz
+rm data.tar.gz
+```
+
 Train components
 ```bash
 PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_train_component_classifier -binary_images ./data/annotated/*/*bin.png -annotations ./data/annotated/*/*.gt.json
@@ -13,6 +21,10 @@ evaluate proposals
 PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_evaluate_proposals.py -proposals ./data/annotated/blovice/*words.json -gt ./data/annotated/blovice/*gt.json -iou_threshold=.5
 ```
 
+train phocnet
+```bash
+
+```
 
 RND score NMS Recall Rate
 -------------------------

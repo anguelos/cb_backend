@@ -33,7 +33,7 @@ def connected_component_labeling(bin_img):
     labels_map = torch.arange(v_connected.max()+1,dtype=torch.int32)
 
 
-def get_component_ds(dibco_ds,unet,device):
+def get_component_ds(self, dibco_ds,unet,device):
     unet = unet.train().to(device)
     result_ds=[]
     with torch.no_grad():

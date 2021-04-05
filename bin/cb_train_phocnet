@@ -2,48 +2,139 @@
 import cbphocnet
 import fargv
 import torch
-
+import numpy as np
+import scipy.spatial.distance
+import time
+import tqdm
 
 p = {
-    "resume_path":"/tmp/phocnet.pt",
+    "resume_path":"./models/phocnet_{fixed_size}.pt",
     "unigrams":"abcdefghijklmnopqrstuvwxyz0123456789",
-    "pyramid_levels":[1,2,3,5,7,11],
+    "pyramid_levels":[1, 2, 3, 5, 7, 11],
     "input_channels": 3,
     "lr":.001,
     "batch_size": 128,
-    "input_width": -1,
-    "input_height": -1,
-    "device": "cuda"
+    "fixed_size":"0x0",
+    "delta":.00000001,
+    "optimizer": ("adam", "sgd"),
+    "momentum": .9,
+    "weight_decay": 0.00005,
+    "loss":("bce", "cosine"),
+    "batch_size": 1,
+    "pseudo_batch_size": 10,
+    "epochs": 100,
+    "device": "cuda",
+    "img_glob":"./data/fake_db/*/*jp2",
+    "gt_glob": "./data/fake_db/*/*gt.json",
+    "testset_glob":"./data/fake_db/blovice_1/*",
+    "test_set_max_items": 1000,
+    "validate_freq":5,
+    "save_freq":1,
 }
 
-def evaluate(net, dataloader):
+
+def evaluate_epoch(net, dataset, device, batch_size=1):
+    net=net.to(device)
+    net.train(False)
+    sample_classes = np.empty(len(dataset), dtype=np.int)
+    for n, (_, phoc) in enumerate(dataset):
+        sample_classes[n] = (abs(hash(str(phoc))) % 1024 ** 3)
+    class_map = {cl: n for n, cl in enumerate(np.sort(np.unique(sample_classes)).tolist())}
+    sample_classes = np.array([class_map[n] for n in sample_classes.tolist()])
+    class_frequencies = np.bincount(sample_classes)
+    non_unique_idx = class_frequencies[sample_classes] > 1
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    outputs = []
+    targets = []
+    net = net.to(device)
+    net.train(False)
     with torch.no_grad():
-        for word_image, embedding in dataloader:
-            pass
-    return 1.
+        for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), desc="Validating",leave=False):
+            targets.append(embedding.numpy())
+            word_image = word_image.to(device)
+            outputs.append(torch.sigmoid(net(word_image)).cpu().numpy())
+    outputs = np.concatenate(outputs, axis=0)
+    targets = np.concatenate(targets, axis=0)
+    dm = scipy.spatial.distance.cdist(outputs, targets, metric='cosine')
+    idx = np.argsort(dm, axis=1)
+    correct = sample_classes[idx] == sample_classes.reshape([-1, 1])
+    correct = correct[:, 1:]
+    correct = correct[non_unique_idx, :]
+    accuracy = correct[:, 0].mean()
+    return accuracy
 
-def run_epoch(net, dataloader, optimizer, criterium, device):
-    for word_image, embedding in dataloader:
+def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_batch_size):
+    net=net.to(device)
+    net.train(True)
+    dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=batch_size)
+    losses = []
+    for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), leave=False,desc="Training"):
         word_image, embedding = word_image.to(device), embedding.to(device)
-        optimizer.zerograd()
+        if optimizer is not None and n % pseudo_batch_size == 0:
+            optimizer.zero_grad()
         output = net(word_image)
-        loss = criterium(word_image, output).sum()
+        loss = criterium(output, embedding).sum()
         loss.backward()
-        optimizer.step()
+        if optimizer is not None and n % pseudo_batch_size == pseudo_batch_size-1:
+            optimizer.step()
+        losses.append(loss.detach().cpu().item())
+    optimizer.step()
+    return sum(losses)/len(losses)
+
+def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, params):
+    start_time = time.time()
+    loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,batch_size=params.batch_size,pseudo_batch_size=params.pseudo_batch_size)
+    accuracy = train_state["accuracies"][-1] if train_state["accuracies"] else 0
+    if epoch % params.validate_freq == 0:
+        t = time.time()
+        accuracy = evaluate_epoch(net, testset, params.device)
+        print(f"Evaluted Accuracy:{accuracy*100:.5} in {1000*(time.time()-t):.7} msec.")
+    train_state["accuracies"].append(accuracy)
+    train_state["losses"].append(loss)
+    train_state["batch_sizes"].append(params.batch_size)
+    train_state["pseudo_batch_sizes"].append(params.pseudo_batch_size)
+    train_state["parameters"]=params
+    train_state["start_times"].append(start_time)
+    train_state["end_times"].append(time.time())
+    if epoch % params.save_freq == 0:
+        net.save(params.resume_path, **train_state)
+    return train_state
 
 
+if __name__ == "__main__":
+    p, _ = fargv.fargv(p)
+    if p.fixed_size == "0x0":
+        fixed_size = None
+    else:
+        fixed_size = None
 
-p, _ = fargv.fargv(p)
+    if p.loss == "bce":
+        criterium = torch.nn.BCEWithLogitsLoss(size_average=True)
+    elif p.loss == "cosine":
+        criterium = cbphocnet.CosineLoss(size_average=False, use_sigmoid=True)
+    else:
+        raise ValueError
 
-if p.input_width == -1 and p.input_height == -1:
-    input_size = None
-elif p.input_width == -1 or p.input_height == -1:
-    raise ValueError
-else:
-    input_size = (p.input_width, p.input_height)
-
-net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels)
-net, history = cbphocnet.PHOCNet.resume(p.resume_path, net=net)
+    net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
+    try:
+        net, train_state = cbphocnet.PHOCNet.resume(p.resume_path, net=net)
+    except FileNotFoundError:
+        train_state = {"accuracies":[],"losses":[],"batch_sizes":[],"pseudo_batch_sizes":[],"start_times":[],
+                       "end_times":[],"parameters":p}
 
 
-print(repr(p))
+    if p.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(net.parameters(), p.lr, momentum=p.momentum, weight_decay=p.weight_decay)
+    elif p.optimizer == 'adam':
+        optimizer = torch.optim.Adam(net.parameters(), p.lr, weight_decay=p.weight_decay)
+    else:
+        raise ValueError
+
+    trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
+    testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net,
+                                  keep_singletons=False, max_items=p.test_set_max_items)
+    trange = tqdm.trange(p.epochs)
+    for epoch in trange:
+        train_state = run_epoch(epoch=epoch, net=net, trainset=trainset, testset=testset, optimizer=optimizer, criterium=criterium, train_state=train_state, params=p)
+        description = f"Acc.:{train_state['accuracies']*100:.5}   Loss:{train_state['losses']:.7}"
+        trange.set_description(description, update=True)

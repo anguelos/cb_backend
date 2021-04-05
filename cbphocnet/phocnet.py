@@ -11,7 +11,7 @@ class PHOCNet(nn.Module):
     Network class for generating PHOCNet and TPP-PHOCNet architectures
     '''
 
-    def __init__(self, unigrams, unigram_pyramids, input_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
+    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
         super().__init__()
         # some sanity checks
         if gpp_type not in ['spp', 'tpp', 'gpp']:
@@ -20,7 +20,7 @@ class PHOCNet(nn.Module):
         n_out = len(unigrams)*sum(unigram_pyramids)
         self.unigrams = unigrams
         self.unigram_pyramids = unigram_pyramids
-        self.input_size = input_size
+        self.fixed_size = fixed_size
 
         self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=64, kernel_size=3, stride=1, padding=1)
         self.conv1_2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
@@ -41,7 +41,7 @@ class PHOCNet(nn.Module):
         self.fc5 = nn.Linear(pooling_output_size, 4096)
         self.fc6 = nn.Linear(4096, 4096)
         self.fc7 = nn.Linear(4096, n_out)
-        self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "input_size": input_size,
+        self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "fixed_size": fixed_size,
                        "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
                        "pool_type": pool_type}
 
@@ -91,6 +91,15 @@ class PHOCNet(nn.Module):
         y = F.dropout(y, p=0.5, training=self.training)
         y = self.fc7(y)
         return y
+
+    def embed_strings(self, str_list):
+        raise NotImplemented
+
+    def embed_image(self, img):
+        raise NotImplemented
+
+    def embed_rectangles(self, img, ltrb):
+        raise NotImplemented
 
     def init_weights(self):
         self.apply(PHOCNet._init_weights_he)
