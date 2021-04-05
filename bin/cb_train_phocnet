@@ -10,7 +10,7 @@ import tqdm
 p = {
     "resume_path":"./models/phocnet_{fixed_size}.pt",
     "unigrams":"abcdefghijklmnopqrstuvwxyz0123456789",
-    "pyramid_levels":[1, 2, 3, 5, 7, 11],
+    "pyramid_levels":[1, 2, 3, 4, 5],
     "input_channels": 3,
     "lr":.0001,
     "batch_size": 1,
