@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from .gpp import GPP
 from .phoc import build_phoc_descriptor
 import unidecode
+from PIL import Image
+import numpy as np
 
 
 class PHOCNet(nn.Module):
@@ -98,7 +100,7 @@ class PHOCNet(nn.Module):
     def embed_image(self, img):
         raise NotImplemented
 
-    def embed_rectangles(self, img:PIL.Image, ltrb:np.array):
+    def embed_rectangles(self, img:Image, ltrb:np.array):
         raise NotImplemented
 
     def init_weights(self):
