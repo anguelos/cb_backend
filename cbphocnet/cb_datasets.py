@@ -55,8 +55,7 @@ class CBDataset(object):
             #print(f"Words:{len(data)}, Unique:{len(occurrences)}, Non singleton:{len([k for k,v in occurrences.items() if v>1])}  keeping: {len(res)}")
             return res
 
-
-    def __init__(self, img_glob, gt_glob, cache_fname="/tmp/cb_ds_T{}_C{}_{}x{}.pt", net=None, train=True, test_glob="*/blovice_1/*", input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
+    def __init__(self, img_glob, gt_glob, cache_fname="/tmp/cb_ds_P{}_T{}_C{}_{}x{}.pt", net=None, train=True, test_glob="*/blovice_1/*", input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
                  unigrams=string.digits+string.ascii_lowercase, max_items=-1, keep_singletons=True):
         if net is not None:
             phoc_pyramids = net.params["unigram_pyramids"]
@@ -64,11 +63,12 @@ class CBDataset(object):
             input_channels = net.params["input_channels"]
             fixed_size = net.params["fixed_size"]
         if cache_fname:
+            p = 'h'.join([str(h) for h in phoc_pyramids])
             if fixed_size is None:
                 width, height = [0,0]
             else:
                 width, height = fixed_size
-            cache_fname = cache_fname.format(int(train),input_channels, width,height)
+            cache_fname = cache_fname.format(p, int(train),input_channels, width,height)
         if os.path.exists(cache_fname):
             self.data = torch.load(cache_fname)
         else:

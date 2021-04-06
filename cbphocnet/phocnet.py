@@ -98,7 +98,7 @@ class PHOCNet(nn.Module):
     def embed_image(self, img):
         raise NotImplemented
 
-    def embed_rectangles(self, img, ltrb):
+    def embed_rectangles(self, img:PIL.Image, ltrb:np.array):
         raise NotImplemented
 
     def init_weights(self):
