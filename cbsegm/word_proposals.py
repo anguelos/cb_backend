@@ -2,7 +2,11 @@ from .components import BoxLikelihoodEstimator, connected_components, extract_bb
 import numpy as np
 from .nms import nms
 
-def word_proposals(prob_img, box_likelihood_estimator:BoxLikelihoodEstimator, thresholds=[1, 128, 255], rlsa_gaps=[1, 4, 8], iou_threshold=.5):
+def word_proposals(prob_img, box_likelihood_estimator:BoxLikelihoodEstimator, thresholds=[1, 128, 255], rlsa_gaps=[1, 4, 8], iou_threshold=.5,
+                   min_word_legth=8,
+                   min_word_height=6,
+                   max_word_length=.2,
+                   max_word_height=.1):
     features = []
     modality_id = 0
     for threshold in thresholds:
@@ -15,8 +19,14 @@ def word_proposals(prob_img, box_likelihood_estimator:BoxLikelihoodEstimator, th
             modality_id += 1
     features = np.concatenate(features, axis=0)
     bboxes = features[:, -4:].astype(np.long)
+    # Absolute filtering
+    page_height, page_width = prob_img.shape
+    width = 1 + bboxes[:, 2] - bboxes[:, 0]
+    height = 1 + bboxes[:, 3] - bboxes[:, 1]
+    keep = (width > min_word_legth) & ((width/page_width) < max_word_length) & (height > min_word_height) & ((height/page_height) < max_word_height)
+    features = features[keep, :]
+    bboxes = bboxes[keep, :]
+    # NMS
     likelihoods = box_likelihood_estimator(features)
-
     keep = nms(bboxes, likelihoods, iou_threshold)
-    #print("Proposals:", likelihoods.shape[0], "   Keep", keep.shape[0])
     return bboxes[keep, :]

@@ -106,25 +106,24 @@ class PHOCNet(nn.Module):
             page = page.transpose(0, 2).transpose(1, 2)
             dataset = []
             boxes = ltrb.tolist()
-            for l, t, r, b in boxes:
-                r_end = min(r + 1, page.size(2))
-                b_end = min(b + 1, page.size(1))
-                dataset.append((img[:, t:b_end, l:r_end]), torch.tensor([l, t, r, b]))
+            for left, top, right, bottom in boxes:
+                right_end = min(right + 1, page.size(2))
+                bottom_end = min(bottom + 1, page.size(1))
+                dataset.append((page[:, top:bottom_end, left:right_end], torch.tensor([left, top, right, bottom])))
             self.to(device)
             self.train(False)
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
             embedings = []
             rectangles = []
             for data, boxes in dataloader:
-                embedings.append(torch.logsig(self(data)).detach().cpu().numpy())
+                embedings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
                 rectangles.append(boxes.numpy())
             embedings = np.concatenate(embedings, axis=0)
             rectangles = np.concatenate(rectangles, axis=0)
-            return (rectangles, embedings)
+            return rectangles, embedings
 
     def init_weights(self):
         self.apply(PHOCNet._init_weights_he)
-
 
     @staticmethod
     def _init_weights_he(m):

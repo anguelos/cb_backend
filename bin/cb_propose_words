@@ -28,17 +28,23 @@ p = {
     "rlsa_distances": "[0,2,4,6,12,18,24]",
     "thresholds": "[32, 64, 128, 224]",
     "nms_threshold": .6,
+    "min_word_length": 8,
+    "min_word_height": 6,
+    "max_word_length": .2,
+    "max_word_height": .1,
+    "threads": 1,
     "device": "cuda"
 }
 
 # PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_propose_words -prob_images ./data/annotated/*/*bin.png -target_postfix .words.json
+
 
 if __name__ == "__main__":
     param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
     p, _ = fargv(p, return_named_tuple=True)
     try:
         net = cbsegm.BoxIOUPredictor()
-        net.load_state_dict(torch.load(p.box_model)["state"])
+        net.load_state_dict(torch.load(p.box_model, map_location='cpu')["state"])
         net.train(False)
         net = net.to(p.device)
         box_predictor = lambda x: torch.exp(net(torch.tensor(x,dtype=torch.float,device=p.device))[:,1]).detach().cpu().numpy()
@@ -52,11 +58,15 @@ if __name__ == "__main__":
             target_root=img_name[:img_name.rfind("/")]
         else:
             target_root=p.target_prefix
-
         target_path=f"{target_root}/{id}{p.target_postfix}"
         prob_img = PIL.Image.open(img_name)
         prob_img = np.array(prob_img)
-        proposals = cbsegm.word_proposals(prob_img, box_predictor, thresholds=thresholds, rlsa_gaps=rlsa_distances, iou_threshold=p.nms_threshold)
+        proposals = cbsegm.word_proposals(prob_img, box_predictor, thresholds=thresholds, rlsa_gaps=rlsa_distances,
+                                          iou_threshold=p.nms_threshold,
+                                          min_word_legth=p.min_word_length,
+                                          min_word_height=p.min_word_height,
+                                          max_word_length=p.max_word_length,
+                                          max_word_height=p.max_word_height)
         if p.target_postfix.endswith("pickle"):
             with open(target_path, "wb") as fd:
                 pickle.dump(proposals, fd)
