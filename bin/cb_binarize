@@ -29,7 +29,6 @@ p = {
     "max_device_mp": 8.0,
     "resume_fname": "./models/{arch}.pt",
     "input":set([]),
-    "boxle_path": "/tmp/boxle.json"
 }
 
 
@@ -70,7 +69,6 @@ def binarize_images(p, filenames=None):
     total_t = time.time()
     with torch.no_grad():
         for image, n in dataloader:
-
             n = n.item()
             binary_out_fname = dataset.filename_list[n] + p.cache_binary_postfix
             try:
@@ -86,14 +84,14 @@ def binarize_images(p, filenames=None):
                         for top in range(0, image.size(2), height//2):
                             bottom = min([top + height, image.size(2)])
                             output[:, :, top:bottom, left:right] = net(image[:, :, top:bottom, left:right].to(p.device))
-                            print(f"{n}:[{left:6},{right:6},{top:6},{bottom:6}]")
+                            #print(f"{n}:[{left:6},{right:6},{top:6},{bottom:6}]")
                 else:
                     image = image.to(p.device)
                     output = net(image)
                 print(f"{n} [{image.size(3)}x{image.size(2)}]:{time.time()-image_t:.5} sec. total:{time.time()-total_t:.2} sec.{binary_out_fname}")
                 out_gray = torch.softmax(output,dim=1)[0,0,:,:]
                 torchvision.transforms.ToPILImage()(out_gray).save(binary_out_fname)
-        yield out_gray, dataset.filename_list[n], n
+            yield out_gray, dataset.filename_list[n], n
 
 
 #PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_binarize -max_device_mp 1. -input ./data/annotated/blovice/soap-pj_00485_mesto-blovice-1837-1954_0*jp2 ./data/annotated/hroznetin/soap-kv_00240_obec-hroznetin-1949-1954_0*jp2
