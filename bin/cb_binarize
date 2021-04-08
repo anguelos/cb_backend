@@ -108,5 +108,6 @@ if __name__ == "__main__":
     p, _ = fargv(p, return_named_tuple=True)
     device = torch.device(p.device)
     filenames = [f for f in p.input if not os.path.isfile(f+p.cache_binary_postfix)]
+    print(f"Given files:{len(p.input)}, uncached:{len(filenames)}")
     for _ in binarize_images(p, filenames=filenames):
         pass
