@@ -9,6 +9,7 @@ from cbbin import *
 from matplotlib import pyplot as plt
 import time
 import tqdm
+import os
 
 import torchvision
 
@@ -44,7 +45,7 @@ class InferenceDataset():
             img = Image.open(self.filename_list[item])
         except IOError:
             print("Failed to load ", self.filename_list[item])
-            img = Image.new('RGB', (100, 100))
+            img = Image.new('RGB', (1, 1))
         return self.transform(img), item
 
     def __len__(self):
@@ -77,8 +78,8 @@ def binarize_images(p, filenames=None):
             except IOError:
                 image_t = time.time()
                 patches = 0
-                if image.size(2)*image.size(3) > p.max_device_mp*1000**2:
-                    output = torch.zeros([1,2,image.size(2),image.size(3)])
+                if image.size(2)*image.size(3) > p.max_device_mp*(1000**2):
+                    output = torch.zeros([1,2,image.size(2), image.size(3)])
                     width = height = int((p.max_device_mp ** .5) * 1000)
                     #print("Computing patches:")
                     for left in range(0, image.size(3), width//2):
@@ -91,6 +92,7 @@ def binarize_images(p, filenames=None):
                     #        print(".",end="")
                     #    print("")
                 else:
+                    patches = 1
                     image = image.to(p.device)
                     output = net(image)
                 print(f"{n} [{image.size(3)}x{image.size(2)}] Pixels: {patches} patches in {time.time()-image_t:.5} sec. total:{time.time()-total_t:.2} sec.{binary_out_fname}")
@@ -105,5 +107,6 @@ if __name__ == "__main__":
     param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
     p, _ = fargv(p, return_named_tuple=True)
     device = torch.device(p.device)
-    for _ in binarize_images(p):
+    filenames = [f for f in p.input if not os.path.isfile(f+p.cache_binary_postfix)]
+    for _ in binarize_images(p, filenames=filenames):
         pass
