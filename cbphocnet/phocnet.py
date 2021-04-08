@@ -47,7 +47,7 @@ class PHOCNet(nn.Module):
                        "pool_type": pool_type}
 
     def arch_hash(self):
-        return hashlib.md5("PHOCNet"+repr(sorted(self.params.items()))).hexdigest()
+        return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
 
     def save(self, fname, **kwargs):
         store_data = {k: v for k, v in kwargs.items()}
