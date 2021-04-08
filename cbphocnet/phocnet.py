@@ -6,12 +6,10 @@ from .phoc import build_phoc_descriptor
 import unidecode
 from PIL import Image
 import numpy as np
+import pathlib
 
 
 class PHOCNet(nn.Module):
-    '''
-    Network class for generating PHOCNet and TPP-PHOCNet architectures
-    '''
 
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
         super().__init__()
@@ -55,7 +53,9 @@ class PHOCNet(nn.Module):
 
     @classmethod
     def resume(cls, fname, allow_fail=True, net=None):
-        store_data = torch.load(fname)
+        if net is not None and allow_fail and not pathlib.Path(fname).is_file():
+            return net, {}
+        store_data = torch.load(fname, map_location="cpu")
         if net is None:
             net = cls(**store_data["contructor_params"])
         else:
@@ -64,10 +64,6 @@ class PHOCNet(nn.Module):
         del store_data["state_dict"]
         del store_data["contructor_params"]
         return net, store_data
-
-    def embed_strings(self, words):
-        words = [unidecode.unidecode(w) for w in words]
-        return build_phoc_descriptor(words, self.unigrams, self.unigram_pyramids)
 
     def forward(self, x):
         y = F.relu(self.conv1_1(x))
@@ -85,7 +81,6 @@ class PHOCNet(nn.Module):
         y = F.relu(self.conv4_1(y))
         y = F.relu(self.conv4_2(y))
         y = F.relu(self.conv4_3(y))
-
         y = self.pooling_layer_fn.forward(y)
         y = F.relu(self.fc5(y))
         y = F.dropout(y, p=0.5, training=self.training)
@@ -94,14 +89,38 @@ class PHOCNet(nn.Module):
         y = self.fc7(y)
         return y
 
-    def embed_strings(self, str_list):
+    def embed_strings(self, words):
+        words = [unidecode.unidecode(w) for w in words]
+        return build_phoc_descriptor(words, self.unigrams, self.unigram_pyramids)
+
+    def embed_image(self, img: Image):
         raise NotImplemented
 
-    def embed_image(self, img):
-        raise NotImplemented
-
-    def embed_rectangles(self, img:Image, ltrb:np.array):
-        raise NotImplemented
+    def embed_rectangles(self, img: Image, ltrb: np.array, device: str, batch_size: int):
+        with torch.no_grad():
+            if self.params["input_channels"] == 1:
+                page = torch.from_numpy(np.array(img.convert("LA"))[:, :, 0]).float().to(device)
+                page = page.unsqueeze(dim=2)
+            else:
+                page = torch.from_numpy(np.array(img.convert("RGB"))).float().to(device)
+            page = page.transpose(0, 2).transpose(1, 2)
+            dataset = []
+            boxes = ltrb.tolist()
+            for l, t, r, b in boxes:
+                r_end = min(r + 1, page.size(2))
+                b_end = min(b + 1, page.size(1))
+                dataset.append((img[:, t:b_end, l:r_end]), torch.tensor([l, t, r, b]))
+            self.to(device)
+            self.train(False)
+            dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+            embedings = []
+            rectangles = []
+            for data, boxes in dataloader:
+                embedings.append(torch.logsig(self(data)).detach().cpu().numpy())
+                rectangles.append(boxes.numpy())
+            embedings = np.concatenate(embedings, axis=0)
+            rectangles = np.concatenate(rectangles, axis=0)
+            return (rectangles, embedings)
 
     def init_weights(self):
         self.apply(PHOCNet._init_weights_he)

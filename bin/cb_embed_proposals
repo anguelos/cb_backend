@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+import cbphocnet
+import cbdiadb
+import fargv
+from PIL import Image
+import glob
+import numpy as np
+import tqdm
+import json
+import pickle
+import time
+
+p = {
+     "phocnet":"./models/phocnet_0x0.pt",
+     "docname":"blovice",
+     "db_root":"./data/fake_db",
+     "image_glob":"{db_root}/{docname}/*jp2",
+     "words_glob":"{db_root}/{docname}/*.words.json",
+     "output_basename":"./data/compiled_fake_db/{docname}",
+     "output_endname":".pickle",
+     "append_boxcount_to_output":True,
+     "batch_size": 1,
+     "device":"cuda"
+}
+
+
+def compile_page(net, page_path, words_path, batch_size, device):
+    img = Image.open(page_path)
+    rectangles_ltrb = np.array(json.load(open(words_path,"r"))["rectangles_ltrb"], dtype=np.int32)
+    boxes, embeddings = net.embed_rectangles(img=img, ltrb=rectangles_ltrb, device=device, batch_size=batch_size)
+    page_num = cbdiadb.imagepath_to_pagenum(page_path)
+    return page_num, boxes, embeddings
+    
+
+if __name__ == "__main__":
+    p, _ = fargv.fargv(p)
+    t = time.time()
+    net = cbphocnet.resume(p.phocnet)
+    image_files = glob.glob(p.image_glob)
+    words_files = glob.glob(p.words_glob)
+    pageid2page = cbdiadb.pageids_to_filepaths(image_files)
+    pageid2words = cbdiadb.pageids_to_filepaths(words_files)
+    assert pageid2page.keys() == pageid2words.keys()
+    all_page_numbers = [] # not page count, page integers consistent with the database
+    all_boxes = []
+    all_embeddings = []
+ 
+    for page_id in tqdm.tqdm(pageid2page.keys(), desc=f"Embedings {p.docname}"):
+        page_num, boxes, embeddings = compile_page(net, pageid2page[page_id], pageid2words[page_id], p.batch_size, p.device)
+        all_page_numbers.append([page_num]*boxes.shape[0])
+        all_boxes.append(boxes)
+        all_embeddings.append(embeddings)
+    all_page_numbers = np.concatenate(all_page_numbers, axis=0)
+    all_boxes = np.concatenate(all_boxes, axis=0)
+    all_embeddings = np.concatenate(all_embeddings, axis=0)
+    outputs = {"page_nums": all_page_numbers, "boxes": all_boxes, "embeddings":all_embeddings}
+    if p.append_boxcount_to_output:
+        fname_data_description = f".P{len(images_files):06}_B{all_boxes.shape[0]:08}_SZ{all_embeddings.shape[1]:06}"
+        output_filename = f"{p.output_basename}{fname_data_description}{p.output_endname}"
+    else:
+        output_filename = f"{p.output_basename}{p.output_endname}"
+    with fd as open(output_filename, "wb"):
+        pickle.dump(outputs, fd)
+    print(f"Computed {all_boxes.shape[0]} from {len(images_files)} pages in {(time.time() - t):7.3} sec.")
+    
