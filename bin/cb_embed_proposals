@@ -10,6 +10,7 @@ import tqdm
 import json
 import pickle
 import time
+import hashlib
 
 p = {
      "phocnet":"./models/phocnet_0x0.pt",
@@ -19,7 +20,7 @@ p = {
      "words_glob":"{db_root}/{docname}/*.words.pickle",
      "output_basename":"./data/compiled_fake_db/{docname}",
      "output_endname":".pickle",
-     "append_boxcount_to_output":True,
+     "append_boxcount_to_output": False,
      "batch_size": 1,
      "device":"cuda"
 }
@@ -43,6 +44,11 @@ if __name__ == "__main__":
     p, _ = fargv.fargv(p)
     t = time.time()
     net, _ = cbphocnet.PHOCNet.resume(p.phocnet)
+    net_hash = hashlib.md5()
+    with open(p.phocnet, "rb") as f:
+        for chunk in iter(lambda: f.read(1024**2), b""):
+            net_hash.update(chunk)
+    net_hash = net_hash.hexdigest()
     image_files = glob.glob(p.image_glob)
     words_files = glob.glob(p.words_glob)
     pageid2page = cbdiadb.pageids_to_filepaths(image_files)
@@ -53,21 +59,24 @@ if __name__ == "__main__":
     all_embeddings = []
     all_page_widths = []
     all_page_heights = []
- 
     for page_id in tqdm.tqdm(pageid2page.keys(), desc=f"Embedings {p.docname}"):
         page_num, boxes, embeddings, page_width, page_height = compile_page(net, pageid2page[page_id], pageid2words[page_id], p.batch_size, p.device)
         all_page_numbers.append([page_num]*boxes.shape[0])
+        all_page_widths.append([page_width] * boxes.shape[0])
+        all_page_heights.append([page_height] * boxes.shape[0])
         all_boxes.append(boxes)
         all_embeddings.append(embeddings)
     all_page_numbers = np.concatenate(all_page_numbers, axis=0)
     all_boxes = np.concatenate(all_boxes, axis=0)
     all_embeddings = np.concatenate(all_embeddings, axis=0)
-    outputs = {"page_nums": all_page_numbers, "boxes": all_boxes, "embeddings":all_embeddings}
+    all_page_widths = np.concatenate(all_page_widths, axis=0)
+    all_page_heights = np.concatenate(all_page_heights, axis=0)
+    outputs = {"page_nums": all_page_numbers, "boxes": all_boxes, "embeddings":all_embeddings, "page_heights":all_page_heights, "page_widths":all_page_widths, "netarch_hash": net.arch_hash(), "generation_params":p,"netstate_hash":net_hash}
     if p.append_boxcount_to_output:
         fname_data_description = f".P{len(image_files):06}_B{all_boxes.shape[0]:08}_SZ{all_embeddings.shape[1]:06}"
-        output_filename = f"{p.output_basename}{fname_data_description}{p.output_endname}"
     else:
-        output_filename = f"{p.output_basename}{p.output_endname}"
+        fname_data_description = f".SZ{all_embeddings.shape[1]:06}"
+    output_filename = f"{p.output_basename}{p.output_endname}"
     with open(output_filename, "wb") as fd:
         pickle.dump(outputs, fd)
     print(f"Computed {all_boxes.shape[0]} from {len(image_files)} pages in {(time.time() - t):7.3} sec.")

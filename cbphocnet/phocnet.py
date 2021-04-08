@@ -7,6 +7,7 @@ import unidecode
 from PIL import Image
 import numpy as np
 import pathlib
+import hashlib
 
 
 class PHOCNet(nn.Module):
@@ -44,6 +45,9 @@ class PHOCNet(nn.Module):
         self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "fixed_size": fixed_size,
                        "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
                        "pool_type": pool_type}
+
+    def arch_hash(self):
+        return hashlib.md5("PHOCNet"+repr(sorted(self.params.items()))).hexdigest()
 
     def save(self, fname, **kwargs):
         store_data = {k: v for k, v in kwargs.items()}

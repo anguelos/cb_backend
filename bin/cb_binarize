@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
-import torch
 from fargv import fargv
 import sys
-import PIL
-import cbbin
 from cbbin import *
-from matplotlib import pyplot as plt
+
 import time
 import tqdm
 import os
@@ -15,7 +12,7 @@ import torchvision
 
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-import cbsegm
+
 
 #https://stackoverflow.com/questions/42462431/oserror-broken-data-stream-when-reading-image-file
 
