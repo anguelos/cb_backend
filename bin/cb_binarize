@@ -76,19 +76,24 @@ def binarize_images(p, filenames=None):
                 print(f"{n} Loading cached {binary_out_fname}")
             except IOError:
                 image_t = time.time()
+                patches = 0
                 if image.size(2)*image.size(3)*1000**2 > p.max_device_mp:
                     output = torch.zeros([1,2,image.size(2),image.size(3)])
                     width = height = int((p.max_device_mp ** .5) * 1000)
+                    #print("Computing patches:")
                     for left in range(0, image.size(3), width//2):
                         right = min([left+width,image.size(3)])
                         for top in range(0, image.size(2), height//2):
                             bottom = min([top + height, image.size(2)])
                             output[:, :, top:bottom, left:right] = net(image[:, :, top:bottom, left:right].to(p.device))
+                            patches += 1
                             #print(f"{n}:[{left:6},{right:6},{top:6},{bottom:6}]")
+                    #        print(".",end="")
+                    #    print("")
                 else:
                     image = image.to(p.device)
                     output = net(image)
-                print(f"{n} [{image.size(3)}x{image.size(2)}]:{time.time()-image_t:.5} sec. total:{time.time()-total_t:.2} sec.{binary_out_fname}")
+                print(f"{n} [{image.size(3)}x{image.size(2)}] Pixels: {patches} patches in {time.time()-image_t:.5} sec. total:{time.time()-total_t:.2} sec.{binary_out_fname}")
                 out_gray = torch.softmax(output,dim=1)[0,0,:,:]
                 torchvision.transforms.ToPILImage()(out_gray).save(binary_out_fname)
             yield out_gray, dataset.filename_list[n], n
@@ -100,5 +105,5 @@ if __name__ == "__main__":
     param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
     p, _ = fargv(p, return_named_tuple=True)
     device = torch.device(p.device)
-    for img in binarize_images(p):
+    for _ in binarize_images(p):
         pass
