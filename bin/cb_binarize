@@ -77,7 +77,7 @@ def binarize_images(p, filenames=None):
             except IOError:
                 image_t = time.time()
                 patches = 0
-                if image.size(2)*image.size(3)*1000**2 > p.max_device_mp:
+                if image.size(2)*image.size(3) > p.max_device_mp*1000**2:
                     output = torch.zeros([1,2,image.size(2),image.size(3)])
                     width = height = int((p.max_device_mp ** .5) * 1000)
                     #print("Computing patches:")
