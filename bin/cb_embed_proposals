@@ -3,7 +3,6 @@
 import cbphocnet
 import cbdiadb
 import fargv
-from PIL import Image
 import glob
 import numpy as np
 import tqdm
@@ -11,6 +10,15 @@ import json
 import pickle
 import time
 import hashlib
+
+from PIL import Image, ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+# This fixes the 'OSError: broken data stream when reading image file'
+#https://stackoverflow.com/questions/42462431/oserror-broken-data-stream-when-reading-image-file
+# examples of broken files:
+#chronicle/soap-kv/soap-kv_00318_mesto-touzim-1947-1948/soap-kv_00318_mesto-touzim-1947-1948_0450.jp2
+#chronicle/soap-kv/soap-kv_00246_obec-jakubov-1958/soap-kv_00246_obec-jakubov-1958_0600.jp2
 
 p = {
      "phocnet":"./models/phocnet_0x0.pt",
@@ -51,27 +59,26 @@ if __name__ == "__main__":
     net_hash = net_hash.hexdigest()
     image_files = glob.glob(p.image_glob)
     words_files = glob.glob(p.words_glob)
-    pageid2page = cbdiadb.pageids_to_filepaths(image_files)
-    pageid2words = cbdiadb.pageids_to_filepaths(words_files)
+    pageid2page = cbdiadb.pageids_to_filepaths(image_files, db_root=p.db_root)
+    pageid2words = cbdiadb.pageids_to_filepaths(words_files, db_root=p.db_root)
     assert pageid2page.keys() == pageid2words.keys()
     all_page_numbers = [] # not page count, page integers consistent with the database
     all_boxes = []
     all_embeddings = []
-    all_page_widths = []
-    all_page_heights = []
+    global_page_sizes = {}
     for page_id in tqdm.tqdm(pageid2page.keys(), desc=f"Embedings {p.docname}"):
         page_num, boxes, embeddings, page_width, page_height = compile_page(net, pageid2page[page_id], pageid2words[page_id], p.batch_size, p.device)
         all_page_numbers.append([page_num]*boxes.shape[0])
-        all_page_widths.append([page_width] * boxes.shape[0])
-        all_page_heights.append([page_height] * boxes.shape[0])
         all_boxes.append(boxes)
         all_embeddings.append(embeddings)
+        global_page_sizes[page_id] = (page_width, page_height)
     all_page_numbers = np.concatenate(all_page_numbers, axis=0)
     all_boxes = np.concatenate(all_boxes, axis=0)
     all_embeddings = np.concatenate(all_embeddings, axis=0)
-    all_page_widths = np.concatenate(all_page_widths, axis=0)
-    all_page_heights = np.concatenate(all_page_heights, axis=0)
-    outputs = {"page_nums": all_page_numbers, "boxes": all_boxes, "embeddings":all_embeddings, "page_heights":all_page_heights, "page_widths":all_page_widths, "netarch_hash": net.arch_hash(), "generation_params":p,"netstate_hash":net_hash}
+    document_id = cbdiadb.documentpath_to_documentid(image_files[0], p.db_root)
+    outputs = {"page_nums": all_page_numbers, "boxes": all_boxes, "embeddings":all_embeddings,
+               "netarch_hash": net.arch_hash(), "page_sizes":global_page_sizes,
+               "generation_params":p, "netstate_hash":net_hash, "document_id": document_id}
     if p.append_boxcount_to_output:
         fname_data_description = f".P{len(image_files):06}_B{all_boxes.shape[0]:08}_SZ{all_embeddings.shape[1]:06}"
     else:

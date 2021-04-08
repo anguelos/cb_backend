@@ -1,1 +1,1 @@
-from .utils import imagepath_to_pagenum, filepath_to_pageid, pageids_to_filepaths
+from .utils import imagepath_to_pagenum, filepath_to_pageid, pageids_to_filepaths, documentpath_to_documentid

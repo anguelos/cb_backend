@@ -46,6 +46,9 @@ class PHOCNet(nn.Module):
                        "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
                        "pool_type": pool_type}
 
+    def retrieval_distance_metric(self):
+        return "cosine"
+
     def arch_hash(self):
         return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
 
