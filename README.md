@@ -29,7 +29,15 @@ PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_evaluate_proposals.py -proposals ./
 
 Train Phocnet
 ```bash
+mkdir -p ./models
 PYTHONPATH="./" ./bin/cb_train_phocnet -batch_size 1 -pseudo_batch_size 10 -img_glob './data/fake_db/blovice*/*jp2' -gt_glob './data/fake_db/blovice*/*gt.json' -epochs 1000
+```
+
+Embed data
+```bash
+export PYTHONPATH="./:./thirdparty/iunets"
+mkdir -p './data/compiled_fake_db/
+./bin/cb_embed_proposal -phocnet ./models/phocnet_0x0.pt  
 ```
 
 RND score NMS Recall Rate
