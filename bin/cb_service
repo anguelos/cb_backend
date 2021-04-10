@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import cbphocnet
 import fargv
-import string
 import cherrypy_cors
 import cherrypy
 from PIL import Image
@@ -11,6 +10,7 @@ import base64
 from cbdiadb import NumpyIndex
 import glob
 import cbphocnet
+import time
 
 
 class IndexServer(object):
@@ -18,13 +18,6 @@ class IndexServer(object):
         super().__init__()
         self.embedding_net, _ = cbphocnet.PHOCNet.resume(params.embeding_net)
         self.db = NumpyIndex.load_documents(params.indexed_documents, document_root=params.document_root, net=self.embedding_net)
-        #self.db = NumpyIndex(nb_embeddings=params.nb_embeddings,embedding_size=embedding_size, nb_documents=1, metric="euclidean")
-        #self.db.set_random_data(max_documents=params.max_documents, page_width=params.page_width,
-        #                        page_height=params.page_height,
-        #                        min_word_height=params.min_word_height, max_word_height=params.max_word_height,
-        #                        min_word_width=params.min_word_width, max_word_width=params.max_word_width,
-        #                        doc_glob=params.document_glob, doc_root=params.document_root)
-        #self.doc_root = params.document_glob
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -58,12 +51,13 @@ class IndexServer(object):
         if cherrypy.request.method == 'OPTIONS':
             return {}
         query = cherrypy.request.json
+        t = time.time()
         embedding = self.embedding_net.embed_strings([query["q_str"]])
         ctx_docnames = query.get("doc_ids", [])
         max_occurence_per_document = query.get("rectangles_per_document", -1)
-        max_responces = query.get("max_rectangles", 10000)
+        max_responces = query.get("max_rectangles", 1000)
         responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-        return {"rectangles": responces}
+        return {"rectangles": responces, "duration":f"{(time.time()-t):8.3} sec."}
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -72,7 +66,7 @@ class IndexServer(object):
         if cherrypy.request.method == 'OPTIONS':
             return {}
         query = cherrypy.request.json
-        img=Image.open(BytesIO(base64.b64decode(query["q_img"])))
+        img = Image.open(BytesIO(base64.b64decode(query["q_img"])))
         img.save("/tmp/query.png")
         embedding = np.random.rand(1, self.db.embedding_size)
         ctx_docnames = query.get("doc_ids", [])
