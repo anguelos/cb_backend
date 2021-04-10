@@ -143,7 +143,9 @@ class NumpyIndex(AbstractIndex):
         print("filter:",filter_by_doc_occurences)
         responce_idx, similarity = responce_idx[filter_by_doc_occurences], similarity[filter_by_doc_occurences]
         print("responce2:", responce_idx)
-        return self._idx_to_response(responce_idx)
+        res = self._idx_to_response(responce_idx)
+        print("responce3:", repr(res))
+        return res
 
     def save(self, path):
         with open(path, "wb") as fd:
@@ -183,8 +185,8 @@ class NumpyIndex(AbstractIndex):
             page_sizes = [chronicle_data["page_sizes"][(chronicle_data["document_id"], p)] for p in chronicle_data["page_nums"]]
             start_pos = end_pos
             end_pos = start_pos+chronicle_data["embeddings"].shape[0]
-            print(f"{(time.time()-all_t):10.5}: Loading {start_pos} to {end_pos}")
             idx.docnames[doc_id] = chronicle_data["document_id"]
+            print(f"{(time.time() - all_t):10.5}: Loading {chronicle_data['document_id']} in [{start_pos} to {end_pos}]")
             idx.doccodes[start_pos:end_pos] = doc_id
             idx.pagecodes[start_pos:end_pos] = chronicle_data["page_nums"]
             idx.left[start_pos:end_pos] = chronicle_data["boxes"][:, 0]
