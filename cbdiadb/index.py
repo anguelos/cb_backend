@@ -52,7 +52,6 @@ class NumpyIndex(AbstractIndex):
         return self.docnames.shape[0]
 
     def __init__(self, nb_embeddings: int, embedding_size: int, nb_documents: int, metric:str, embedding_dtype=np.float16):
-        print("metric:", metric)
         assert metric in ["euclidean", "cosine"]
         self.metric = metric
         self.docnames = np.empty(nb_documents, dtype=object)
@@ -109,8 +108,6 @@ class NumpyIndex(AbstractIndex):
 
     def _retrieve_euclidean(self, query_embedding: np.array, ctx_docnames: t_ctx)->Tuple[np.array, np.array]:
         ctx_idx = self._context_to_idx(ctx_docnames)
-        print("ctx_idx.shape", ctx_idx.shape)
-        print("ctx_idx.sum()", ctx_idx.sum())
         embeddings = self.embeddings[ctx_idx, :]
         reversed_ctx_idx = self.idx[ctx_idx]
         subtracted = embeddings - query_embedding
@@ -168,6 +165,7 @@ class NumpyIndex(AbstractIndex):
 
     @classmethod
     def load_documents(cls, document_pickles, document_root, net):
+        all_t = time.time()
         all_chronicles = []
         for filename in document_pickles:
             with open(filename, "rb") as fd:
@@ -178,10 +176,12 @@ class NumpyIndex(AbstractIndex):
         netarch_hash = net.arch_hash()
         end_pos = 0
         doc_id = 0
+        print(f"Loading {nb_boxes} in {len(document_pickles)} documents.")
         for chronicle_data in all_chronicles:
             page_sizes = [chronicle_data["page_sizes"][(chronicle_data["document_id"], p)] for p in chronicle_data["page_nums"]]
             start_pos = end_pos
             end_pos = start_pos+chronicle_data["embeddings"].shape[0]
+            print(f"{(time.time()-all_t):10.5}: Loading {start_pos} to {end_pos}")
             idx.docnames[doc_id] = chronicle_data["document_id"]
             idx.doccodes[start_pos:end_pos] = doc_id
             idx.pagecodes[start_pos:end_pos] = chronicle_data["page_nums"]
@@ -194,6 +194,7 @@ class NumpyIndex(AbstractIndex):
             idx.image_heights[start_pos:end_pos] = [sz[1] for sz in page_sizes]
             assert netarch_hash == chronicle_data["netarch_hash"] # one index must have compatible embeddings
             doc_id += 1
+        print(f"{(time.time() - all_t):10.5}: Loaded {nb_boxes} of {embedding_dims} in total.")
         return idx
 
 
