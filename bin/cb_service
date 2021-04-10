@@ -18,6 +18,7 @@ class IndexServer(object):
         super().__init__()
         self.embedding_net, _ = cbphocnet.PHOCNet.resume(params.embeding_net)
         self.db = NumpyIndex.load_documents(params.indexed_documents, document_root=params.document_root, net=self.embedding_net)
+        self.db_root = params.document_root
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -37,6 +38,8 @@ class IndexServer(object):
         elif "q_img" in query:
             embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
         elif "q_ref" in query:
+            img_path = glob.glob(f"{self.db_root}/{query['q_ref'][0]}/*{query['q_ref'][1]:04}*")
+            croped_img = Image.open(img_path).crop(query['q_ref'][2:])
             embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
         else:
             raise ValueError

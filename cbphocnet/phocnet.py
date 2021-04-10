@@ -101,8 +101,18 @@ class PHOCNet(nn.Module):
         words = [unidecode.unidecode(w) for w in words]
         return build_phoc_descriptor(words, self.unigrams, self.unigram_pyramids)
 
-    def embed_image(self, img: Image):
-        raise NotImplemented
+    def embed_image(self, img: Image, device):
+        if self.params["input_channels"] == 1:
+            word_img = torch.from_numpy(np.array(img.convert("LA"))[:, :, 0]).float().to(device)
+            word_img = word_img.unsqueeze(dim=2)
+        else:
+            word_img = torch.from_numpy(np.array(img.convert("RGB"))).float().to(device)
+
+        dl = torch.utils.data.DataLoader([[word_img, 0]]) # we use a data loader because under some conditions raw tensors can cause a memory leak.
+        embeddings = []
+        for data, _ in dl:
+            embeddings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
+        return embeddings[0]
 
     def embed_rectangles(self, img: Image, ltrb: np.array, device: str, batch_size: int):
         with torch.no_grad():
