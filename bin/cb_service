@@ -32,7 +32,7 @@ class IndexServer(object):
         max_occurence_per_document = query_params.get("rectangles_per_document", -1)
         max_responces = query_params.get("max_rectangles", 10000)
         if "q_str" in query:
-            embedding = cbphocnet.build_phoc_descriptor([query["q_str"]], params.phoc_chars, params.phoc_levels)
+            embedding = self.embedding_net.embed_strings([query["q_str"]])
         elif "q_img" in query:
             embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
         elif "q_ref" in query:
