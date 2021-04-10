@@ -23,7 +23,7 @@ p = {
     "groundtruth": set([]),
     "proposals": set([]),
     "iou_threshold": .5,
-    "model_path": "/tmp/box_iou.pt",
+    "model_path": "./models/box_iou.pt",
     "dataset_path": "/tmp/cc_dataset.pt",
     "batch_size": 128,
     "lr":.01,

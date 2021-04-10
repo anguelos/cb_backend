@@ -62,7 +62,7 @@ def binarize_images(p, filenames=None):
         net = create_net(model_param_dict["arch"], model_param_dict["n_channels"], model_param_dict["n_classes"], .99,
                          False, False)
     _, _, _, _, net = resume(net, p.resume_fname, p.device)
-    net = net.eval().to("cuda")
+    net = net.eval().to(p.device)
 
     total_t = time.time()
     with torch.no_grad():
@@ -101,10 +101,12 @@ def binarize_images(p, filenames=None):
 #PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_binarize -max_device_mp 1. -input ./data/annotated/blovice/soap-pj_00485_mesto-blovice-1837-1954_0*jp2 ./data/annotated/hroznetin/soap-kv_00240_obec-hroznetin-1949-1954_0*jp2
 
 if __name__ == "__main__":
-    param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_named_tuple=False)
-    p, _ = fargv(p, return_named_tuple=True)
+    param_dict, _ = fargv(p.copy(), argv=sys.argv.copy(), return_type="dict")
+    p, _ = fargv(p.copy(), argv=sys.argv.copy(), return_type="SimpleNamespace")
     device = torch.device(p.device)
+
     filenames = [f for f in p.input if not os.path.isfile(f+p.cache_binary_postfix)]
+    print([(f+p.cache_binary_postfix, os.path.isfile(f+p.cache_binary_postfix)) for f in p.input])
     print(f"Given files:{len(p.input)}, uncached:{len(filenames)}")
     for _ in binarize_images(p, filenames=filenames):
         pass
