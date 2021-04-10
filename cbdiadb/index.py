@@ -103,6 +103,8 @@ class NumpyIndex(AbstractIndex):
             rev_idx = self.get_docname_reverse_index()  # todo(anguelos) cache reverse index
             idx = np.zeros(self.nb_embeddings, dtype=np.bool)
             for ctx_docname in ctx_docnames:
+                if ctx_docname.startswith("/"): #  todo(anguelos) make document ids include the intial slash
+                    ctx_docname = ctx_docname[1:]
                 idx = idx | (self.doccodes == rev_idx[ctx_docname])
         return idx
 
