@@ -105,7 +105,6 @@ class NumpyIndex(AbstractIndex):
             for ctx_docname in ctx_docnames:
                 if ctx_docname.startswith("/"): #  todo(anguelos) make document ids include the intial slash
                     ctx_docname = ctx_docname[1:]
-                print(ctx_docname)
                 idx = idx | (self.doccodes == rev_idx[ctx_docname])
         return idx
 

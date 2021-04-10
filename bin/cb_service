@@ -27,6 +27,7 @@ class IndexServer(object):
             return {}
         query_params = cherrypy.request.json
         query = query_params["query"]
+        print("search word query_params:", query)
         print("search word query:", query)
         ctx_docnames = query_params.get("doc_ids", [])
         max_occurence_per_document = query_params.get("rectangles_per_document", -1)
