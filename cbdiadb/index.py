@@ -167,6 +167,41 @@ class NumpyIndex(AbstractIndex):
             }
             pickle.dump(data, fd)
 
+    # This implementation is extremely slow due to idx.embeddings[start_pos:end_pos, :] = chronicle_data["embeddings"]
+    # @classmethod
+    # def load_documents(cls, document_pickles, document_root, net):
+    #     all_t = time.time()
+    #     all_chronicles = []
+    #     for filename in document_pickles:
+    #         with open(filename, "rb") as fd:
+    #             all_chronicles.append(pickle.load(fd))
+    #     nb_boxes = sum([d["embeddings"].shape[0] for d in all_chronicles])
+    #     embedding_dims = all_chronicles[0]["embeddings"].shape[1]
+    #     idx = cls(nb_embeddings=nb_boxes, embedding_size=embedding_dims, nb_documents=len(document_pickles), metric=net.retrieval_distance_metric())
+    #     netarch_hash = net.arch_hash()
+    #     end_pos = 0
+    #     doc_id = 0
+    #     print(f"Loading {nb_boxes} in {len(document_pickles)} documents.")
+    #     for chronicle_data in all_chronicles:
+    #         page_sizes = [chronicle_data["page_sizes"][(chronicle_data["document_id"], p)] for p in chronicle_data["page_nums"]]
+    #         start_pos = end_pos
+    #         end_pos = start_pos+chronicle_data["embeddings"].shape[0]
+    #         idx.docnames[doc_id] = chronicle_data["document_id"]
+    #         print(f"{(time.time() - all_t):10.5}: Loading {chronicle_data['document_id']} in [{start_pos} to {end_pos}]")
+    #         idx.doccodes[start_pos:end_pos] = doc_id
+    #         idx.pagecodes[start_pos:end_pos] = chronicle_data["page_nums"]
+    #         idx.left[start_pos:end_pos] = chronicle_data["boxes"][:, 0]
+    #         idx.top[start_pos:end_pos] = chronicle_data["boxes"][:, 1]
+    #         idx.right[start_pos:end_pos] = chronicle_data["boxes"][:, 2]
+    #         idx.bottom[start_pos:end_pos] = chronicle_data["boxes"][:, 3]
+    #         idx.embeddings[start_pos:end_pos, :] = chronicle_data["embeddings"]
+    #         idx.image_widths[start_pos:end_pos] = [sz[0] for sz in page_sizes]
+    #         idx.image_heights[start_pos:end_pos] = [sz[1] for sz in page_sizes]
+    #         assert netarch_hash == chronicle_data["netarch_hash"] # one index must have compatible embeddings
+    #         doc_id += 1
+    #     print(f"{(time.time() - all_t):10.5}: Loaded {nb_boxes} of {embedding_dims} in total.")
+    #     return idx
+
     @classmethod
     def load_documents(cls, document_pickles, document_root, net):
         all_t = time.time()
@@ -174,33 +209,44 @@ class NumpyIndex(AbstractIndex):
         for filename in document_pickles:
             with open(filename, "rb") as fd:
                 all_chronicles.append(pickle.load(fd))
-        nb_boxes = sum([d["embeddings"].shape[0] for d in all_chronicles])
-        embedding_dims = all_chronicles[0]["embeddings"].shape[1]
-        idx = cls(nb_embeddings=nb_boxes, embedding_size=embedding_dims, nb_documents=len(document_pickles), metric=net.retrieval_distance_metric())
+        idx = cls(nb_embeddings=1, embedding_size=1, nb_documents=len(document_pickles), metric=net.retrieval_distance_metric())
         netarch_hash = net.arch_hash()
-        end_pos = 0
         doc_id = 0
-        print(f"Loading {nb_boxes} in {len(document_pickles)} documents.")
+        doccodes = []
+        pagecodes = []
+        left = []
+        top = []
+        right = []
+        bottom = []
+        embeddings = []
+        image_widths = []
+        image_heights = []
         for chronicle_data in all_chronicles:
             page_sizes = [chronicle_data["page_sizes"][(chronicle_data["document_id"], p)] for p in chronicle_data["page_nums"]]
-            start_pos = end_pos
-            end_pos = start_pos+chronicle_data["embeddings"].shape[0]
-            idx.docnames[doc_id] = chronicle_data["document_id"]
-            print(f"{(time.time() - all_t):10.5}: Loading {chronicle_data['document_id']} in [{start_pos} to {end_pos}]")
-            idx.doccodes[start_pos:end_pos] = doc_id
-            idx.pagecodes[start_pos:end_pos] = chronicle_data["page_nums"]
-            idx.left[start_pos:end_pos] = chronicle_data["boxes"][:, 0]
-            idx.top[start_pos:end_pos] = chronicle_data["boxes"][:, 1]
-            idx.right[start_pos:end_pos] = chronicle_data["boxes"][:, 2]
-            idx.bottom[start_pos:end_pos] = chronicle_data["boxes"][:, 3]
-            idx.embeddings[start_pos:end_pos, :] = chronicle_data["embeddings"]
-            idx.image_widths[start_pos:end_pos] = [sz[0] for sz in page_sizes]
-            idx.image_heights[start_pos:end_pos] = [sz[1] for sz in page_sizes]
+            nb_embeddings = chronicle_data["embeddings"].shape[0]
+            print(f"{(time.time() - all_t):10.5}: Loading {chronicle_data['document_id']} ")
+            doccodes.append(np.full(nb_embeddings, doc_id, dtype=np.int))
+            pagecodes.append(chronicle_data["page_nums"])
+            left.append(chronicle_data["boxes"][:, 0])
+            top.append(chronicle_data["boxes"][:, 1])
+            right.append(chronicle_data["boxes"][:, 2])
+            bottom.append(chronicle_data["boxes"][:, 3])
+            embeddings.append(chronicle_data["embeddings"])
+            image_widths.append(np.array([sz[0] for sz in page_sizes], dtype=np.int))
+            image_heights.append(np.array([sz[1] for sz in page_sizes], dtype=np.int))
             assert netarch_hash == chronicle_data["netarch_hash"] # one index must have compatible embeddings
             doc_id += 1
-        print(f"{(time.time() - all_t):10.5}: Loaded {nb_boxes} of {embedding_dims} in total.")
+        idx.doccodes = np.concatenate(doccodes, axis=0)
+        idx.pagecodes = np.concatenate(doccodes, axis=0)
+        idx.left = np.concatenate(left, axis=0)
+        idx.top = np.concatenate(top, axis=0)
+        idx.right = np.concatenate(right, axis=0)
+        idx.bottom = np.concatenate(bottom, axis=0)
+        idx.embeddings = np.concatenate(embeddings, axis=0)
+        idx.image_widths = np.concatenate(image_widths, axis=0)
+        idx.image_heights = np.concatenate(image_heights, axis=0)
+        print(f"{(time.time() - all_t):10.5}: Loaded {idx.embeddings.shape[0]} of {idx.embeddings.shape[1]} in total.")
         return idx
-
 
     @classmethod
     def load(cls, path):
