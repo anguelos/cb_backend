@@ -107,7 +107,7 @@ class PHOCNet(nn.Module):
             word_img = word_img.unsqueeze(dim=2)
         else:
             word_img = torch.from_numpy(np.array(img.convert("RGB"))).float().to(device)
-
+        word_img = word_img.transpose(0, 2).transpose(1, 2)
         dl = torch.utils.data.DataLoader([[word_img, 0]]) # we use a data loader because under some conditions raw tensors can cause a memory leak.
         embeddings = []
         for data, _ in dl:
