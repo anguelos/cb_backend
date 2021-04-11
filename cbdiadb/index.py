@@ -222,6 +222,7 @@ class NumpyIndex(AbstractIndex):
         image_widths = []
         image_heights = []
         for chronicle_data in all_chronicles:
+            idx.docnames[doc_id] = chronicle_data["document_id"]
             page_sizes = [chronicle_data["page_sizes"][(chronicle_data["document_id"], p)] for p in chronicle_data["page_nums"]]
             nb_embeddings = chronicle_data["embeddings"].shape[0]
             print(f"{(time.time() - all_t):10.5}: Loading {chronicle_data['document_id']} ")
