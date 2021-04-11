@@ -246,6 +246,7 @@ class NumpyIndex(AbstractIndex):
         idx.embeddings = np.concatenate(embeddings, axis=0)
         idx.image_widths = np.concatenate(image_widths, axis=0)
         idx.image_heights = np.concatenate(image_heights, axis=0)
+        idx.idx = np.arange(idx.embeddings.shape[0], dtype=np.long)
         print(f"{(time.time() - all_t):10.5}: Loaded {idx.embeddings.shape[0]} of {idx.embeddings.shape[1]} in total.")
         return idx
 
