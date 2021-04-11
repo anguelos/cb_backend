@@ -39,8 +39,10 @@ class IndexServer(object):
             embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
         elif "q_ref" in query:
             img_path = glob.glob(f"{self.db_root}/{query['q_ref'][0]}/*{query['q_ref'][1]:04}*")
+            print(f"loading {img_path}")
             croped_img = Image.open(img_path).crop(query['q_ref'][2:])
-            embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
+            print(f"cropped size  {croped_img.size}")
+            embedding = cbphocnet.embed_image(croped_img)
         else:
             raise ValueError
             #embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
