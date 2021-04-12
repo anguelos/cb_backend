@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import requests
+import fargv
+from PIL import Image
+import glob
+
+p = {
+    "port": 8080,
+    "server": "127.0.0.1",
+    "query": "",
+    "doc_ids": set([]),
+    "rectangles_per_document": -1,
+    "max_rectangles": 100,
+    "shown_word_count": 10,
+    "db_root": "./data/fake_db/"
+}
+
+
+def image_result(results, item_count, document_root, pad=4):
+    cropped_images = []
+    for item in range(item_count):
+        image_glob = f"{document_root}/{results['rectangles'][item][0]}/*{results['rectangles'][item][1]:04}*jp2"
+        print("glob:", image_glob, end="")
+        img = Image.open(glob.glob(image_glob)[0])
+        print(results['rectangles'][item][2:6])
+        img = img.crop(results['rectangles'][item][2:6])
+        cropped_images.append(img)
+    res_width = max([img.size[0] for img in cropped_images]) + pad * 2
+    res_height = sum([img.size[0]+pad for img in cropped_images]) + pad
+    result = Image.new('RGB', (res_width, res_height))
+    top = pad
+    for img in cropped_images:
+        result.paste(im=img, box=(pad, top))
+        top += (img.size[1] + pad)
+    return result
+
+
+if __name__ == '__main__':
+    p, _ = fargv.fargv(p)
+    url = f"http://{p.server}:{p.port}/searchword"
+    query_dict = {"query": {"q_str": p.query},
+                  "rectangles_per_document": p.rectangles_per_document,
+                  "max_rectangles": p.max_rectangles}
+    r = requests.post(url, json=query_dict)
+    print("Return code:", r.status_code)
+    results = r.json()
+    print("Result :", repr(results))
+    if p.shown_word_count > 0:
+        image_result(results, p.shown_word_count, p.db_root).show()

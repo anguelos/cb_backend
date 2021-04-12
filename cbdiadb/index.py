@@ -90,7 +90,7 @@ class NumpyIndex(AbstractIndex):
         left = self.left[idx].tolist()
         top = self.top[idx].tolist()
         right = self.right[idx].tolist()
-        bottom = self.right[idx].tolist()
+        bottom = self.bottom[idx].tolist()
         width = self.image_widths[idx].tolist()
         height = self.image_heights[idx].tolist()
         res = list(zip(docnames, pagecodes, left, top, right, bottom, width, height))
