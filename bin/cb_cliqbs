@@ -12,7 +12,9 @@ p = {
     "rectangles_per_document": -1,
     "max_rectangles": 100,
     "shown_word_count": 10,
-    "db_root": "./data/fake_db/"
+    "db_root": "./data/fake_db/",
+    "output": "/tmp/qbs.png",
+    "show": False
 }
 
 
@@ -46,4 +48,8 @@ if __name__ == '__main__':
     results = r.json()
     print("Result :", repr(results))
     if p.shown_word_count > 0:
-        image_result(results, p.shown_word_count, p.db_root).show()
+        img = image_result(results, p.shown_word_count, p.db_root)
+        img.save(p.output)
+        if p.show:
+            img.show()
+
