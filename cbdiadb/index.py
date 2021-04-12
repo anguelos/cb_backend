@@ -238,7 +238,7 @@ class NumpyIndex(AbstractIndex):
             assert netarch_hash == chronicle_data["netarch_hash"] # one index must have compatible embeddings
             doc_id += 1
         idx.doccodes = np.concatenate(doccodes, axis=0)
-        idx.pagecodes = np.concatenate(doccodes, axis=0)
+        idx.pagecodes = np.concatenate(pagecodes, axis=0)
         idx.left = np.concatenate(left, axis=0)
         idx.top = np.concatenate(top, axis=0)
         idx.right = np.concatenate(right, axis=0)
