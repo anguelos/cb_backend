@@ -24,6 +24,7 @@ class IndexServer(object):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def searchword(self):
+        t = time.time()
         if cherrypy.request.method == 'OPTIONS':
             return {}
         query_params = cherrypy.request.json
@@ -48,7 +49,7 @@ class IndexServer(object):
             raise ValueError
             #embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
         responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-        return {"rectangles": responces}
+        return {"rectangles": responces, "search_time":(time.time()-t)}
 
 
     @cherrypy.expose
