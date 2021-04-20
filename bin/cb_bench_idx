@@ -14,7 +14,7 @@ import time
 
 def searchword(query,db,embedding_net, ctx_docnames=[],max_occurence_per_document =-1,max_responces = 10000):
     t=time.time()
-    embedding = embedding_net.embed_strings([query["q_str"]])
+    embedding = embedding_net.embed_strings([query])
     responces = db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
     return {"rectangles": responces, "search_time": (time.time()-t)}
 
