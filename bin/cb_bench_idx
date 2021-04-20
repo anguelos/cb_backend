@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+import fargv
+import cherrypy_cors
+import cherrypy
+from PIL import Image
+import numpy as np
+from io import BytesIO
+import base64
+from cbdiadb import NumpyIndex
+import glob
+import cbphocnet
+import time
+
+
+def searchword(query,db,embedding_net, ctx_docnames=[],max_occurence_per_document =-1,max_responces = 10000):
+    t=time.time()
+    embedding = embedding_net.embed_strings([query["q_str"]])
+    responces = db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
+    return {"rectangles": responces, "search_time": (time.time()-t)}
+
+
+if __name__=="__main__":
+    params = {
+        "server_thread_pool": 2,
+        "port": 8080,
+        "embeding_net": "./models/phocnet_0x0.pt",
+        "indexed_documents": set([]),
+        "document_glob": ("./data/fake_db/*",
+                          """PYTHONPATH="./" ./bin/mock_server -document_glob '/data/archiv/public/chronicle/*/*'"""),
+        "document_root": ("./data/fake_db/",
+                          """PYTHONPATH="./" ./bin/mock_server -document_root '/data/archiv/public/'""")
+    }
+    params, _ = fargv.fargv(params)
+    time.time()
+    embedding_net, _ = cbphocnet.resume_embedder(params.embeding_net)
+    print(f"{time.time()-t:10.5} Net Loaded")
+    db = NumpyIndex.load_documents(params.indexed_documents, document_root=params.document_root, net=embedding_net)
+    print(f"{time.time() - t:10.5} Idx Loaded")
+    db_root = params.document_root
+    searchword("q1",db,embedding_net)
+    print(f"{time.time() - t:10.5} Q1 asked")
+    searchword("q2",db,embedding_net)
+    print(f"{time.time() - t:10.5} Q2 asked")
+
+
