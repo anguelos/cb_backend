@@ -66,6 +66,9 @@ class NumpyIndex(AbstractIndex):
         self.image_widths = np.empty(nb_embeddings, dtype=int)
         self.image_heights = np.empty(nb_embeddings, dtype=int)
 
+    def _update_norms(self):
+        self.embedding_norms = np.sqrt((self.embeddings ** 2).sum(axis=1))[:, np.newaxis]
+
     def _reset_nb_embeddings(self, nb_embeddings: int)->None:
         self.idx = np.arange(nb_embeddings, dtype=int)
         self.embeddings = np.empty([nb_embeddings, self.embedding_size])
@@ -111,12 +114,28 @@ class NumpyIndex(AbstractIndex):
     def _retrieve_euclidean(self, query_embedding: np.array, ctx_docnames: t_ctx)->Tuple[np.array, np.array]:
         ctx_idx = self._context_to_idx(ctx_docnames)
         embeddings = self.embeddings[ctx_idx, :]
+
         reversed_ctx_idx = self.idx[ctx_idx]
         subtracted = embeddings - query_embedding
-        similarity = (subtracted * subtracted).sum(axis=1) ** .5
-        sorted_ctx_idx = np.argsort(similarity)
+        dissimilarity = (subtracted * subtracted).sum(axis=1) ** .5
+        sorted_ctx_idx = np.argsort(dissimilarity)
         response_idx = reversed_ctx_idx[sorted_ctx_idx]
-        return response_idx, similarity
+        return response_idx, dissimilarity
+
+    def _retrieve_cosine(self, query_embedding: np.array, ctx_docnames: t_ctx)->Tuple[np.array, np.array]:
+        #vectors /= np.sqrt((vectors ** 2).sum(-1))[..., np.newaxis]
+        ctx_idx = self._context_to_idx(ctx_docnames)
+        embeddings = self.embeddings[ctx_idx, :]
+        norms = self.embedding_norms[ctx_idx, :]
+        q_norm = np.sqrt((query_embedding ** 2).sum(axis=1))[:, np.newaxis]
+        reversed_ctx_idx = self.idx[ctx_idx]
+
+        doted = np.dot(embeddings, query_embedding.T)
+        dissimilarity = 1 - doted / (norms * q_norm)
+
+        sorted_ctx_idx = np.argsort(dissimilarity)
+        response_idx = reversed_ctx_idx[sorted_ctx_idx]
+        return response_idx, dissimilarity
 
     def _generate_perdoc_occurence_limit(self, response_idx:np.array, max_responces_perdoc:int)->np.array:
         print("max_respoces:",max_responces_perdoc)
@@ -133,8 +152,10 @@ class NumpyIndex(AbstractIndex):
         return filter
 
     def search(self, query_embedding: np.array, ctx_docnames: t_ctx, max_responces: int, max_occurence_per_document: int)->List:
-        if self.metric=="euclidean":
+        if self.metric == "euclidean":
             responce_idx, similarity = self._retrieve_euclidean(query_embedding, ctx_docnames)
+        elif self.metric == "cosine":
+            responce_idx, similarity = self._retrieve_cosine(query_embedding, ctx_docnames)
         else:
             raise NotImplementedError(self.metric)
         print("responce1:", responce_idx)
@@ -247,19 +268,10 @@ class NumpyIndex(AbstractIndex):
         idx.image_widths = np.concatenate(image_widths, axis=0)
         idx.image_heights = np.concatenate(image_heights, axis=0)
         idx.idx = np.arange(idx.embeddings.shape[0], dtype=np.long)
+        if idx.metric == "cosine":
+            idx._update_norms()
         print(f"{(time.time() - all_t):10.5}: Loaded {idx.embeddings.shape[0]} of {idx.embeddings.shape[1]} in total.")
         return idx
-
-    @classmethod
-    def load(cls, path):
-        data = pickle.load(open(path, "rb"))
-        result = cls(nb_embeddings=data["nb_embeddings"], embedding_size=data["embedding_size"], nb_documents=data["nb_documents"])
-        del data["nb_embeddings"]
-        del data["embedding_size"]
-        del data["nb_documents"]
-        result.__dict__.update(data)
-        result.idx = np.arange(result.nb_embeddings, dtype=int)
-        return result
 
     def set_random_data(self, max_documents, page_width, page_height, min_word_height, max_word_height, min_word_width, max_word_width, doc_glob, doc_root):
         print("Creating random data ... ", end="")
@@ -298,5 +310,7 @@ class NumpyIndex(AbstractIndex):
         self.doccodes = docids_pagenums[pages, 0]
         print("doccodes", self.doccodes)
         self.pagecodes = docids_pagenums[pages, 1]
+        if self.metric == "cosine":
+            self._update_norms()
         print("pagecodes", self.pagecodes)
         print("Done!")

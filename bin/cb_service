@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import cbphocnet
 import fargv
 import cherrypy_cors
 import cherrypy
@@ -16,7 +15,7 @@ import time
 class IndexServer(object):
     def __init__(self, params):
         super().__init__()
-        self.embedding_net, _ = cbphocnet.PHOCNet.resume(params.embeding_net)
+        self.embedding_net, _ = cbphocnet.resume_embedder(params.embeding_net)
         self.db = NumpyIndex.load_documents(params.indexed_documents, document_root=params.document_root, net=self.embedding_net)
         self.db_root = params.document_root
 
@@ -37,19 +36,16 @@ class IndexServer(object):
         if "q_str" in query:
             embedding = self.embedding_net.embed_strings([query["q_str"]])
         elif "q_img" in query:
-            embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
+            img = Image.open(BytesIO(base64.b64decode(query["q_img"])))
+            embedding = self.embedding_net.embed_image(img)
         elif "q_ref" in query:
-            print(f"glob:{self.db_root}/{query['q_ref'][0]}/*{query['q_ref'][1]:04}*")
             img_path = glob.glob(f"{self.db_root}/{query['q_ref'][0]}/*{query['q_ref'][1]:04}*")[0]
-            print(f"loading {img_path}")
             croped_img = Image.open(img_path).crop(query['q_ref'][2:])
-            print(f"cropped size  {croped_img.size}")
             embedding = self.embedding_net.embed_image(croped_img, device="cpu")
         else:
             raise ValueError
-            #embedding = cbphocnet.build_phoc_descriptor(["hello"], params.phoc_chars, params.phoc_levels)
         responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-        return {"rectangles": responces, "search_time":(time.time()-t)}
+        return {"rectangles": responces, "search_time": (time.time()-t)}
 
 
     @cherrypy.expose
@@ -65,7 +61,7 @@ class IndexServer(object):
         max_occurence_per_document = query.get("rectangles_per_document", -1)
         max_responces = query.get("max_rectangles", 1000)
         responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-        return {"rectangles": responces, "duration":f"{(time.time()-t):8.3} sec."}
+        return {"rectangles": responces, "duration": time.time()-t}
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -75,24 +71,13 @@ class IndexServer(object):
             return {}
         query = cherrypy.request.json
         img = Image.open(BytesIO(base64.b64decode(query["q_img"])))
-        img.save("/tmp/query.png")
-        embedding = np.random.rand(1, self.db.embedding_size)
+        t = time.time()
+        embedding = self.embedding_net.embed_image(img)
         ctx_docnames = query.get("doc_ids", [])
         max_occurence_per_document = query.get("rectangles_per_document", -1)
         max_responces = query.get("max_rectangles", 10000)
         responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-        return {"rectangles": responces}
-
-    @cherrypy.expose
-    @cherrypy.tools.json_in()
-    def qbe_rotate(self):
-        cherrypy.response.headers['Content-Type'] = 'image/png'
-        query = cherrypy.request.json
-        img=Image.open(BytesIO(base64.b64decode(query["q_img"])))
-        img=img.rotate(45)
-        byte_io = BytesIO()
-        img.save(byte_io, 'PNG')
-        return byte_io.getvalue()
+        return {"rectangles": responces, "duration": time.time()-t}
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -200,6 +185,7 @@ N48CXF8m2iQ3YmmKqVlRtW4MLwWACH+H09wdGltaXplZCBieSBVbGVhZCBTbWFydFNhdmVyIQAAOw=="
 
 if __name__=="__main__":
     params = {
+        "server_thread_pool": 2,
         "port": 8080,
         "embeding_net": "./models/phocnet_0x0.pt",
         "indexed_documents": set([]),
@@ -218,6 +204,7 @@ if __name__=="__main__":
         #, ('Access-Control-Allow-Headers', 'Content-Type')],
         'cors.expose.on': True,
         'server.socket_host': '0.0.0.0',
-        'server.socket_port': params.port
+        'server.socket_port': params.port,
+        'server.thread_pool': params.server_thread_pool
     })
     cherrypy.quickstart(IndexServer(params))

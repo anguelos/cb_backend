@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 
-import torch
 from fargv import fargv
 import sys
 import PIL
 import pickle
-import cbbin
 from cbbin import *
-from matplotlib import pyplot as plt
-import time
 import tqdm
 
-import torchvision
+
 
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -21,7 +17,7 @@ import cbsegm
 
 
 p = {
-    "prob_images":set([]),
+    "prob_images": set([]),
     "target_postfix": ".words.pickle",
     "target_prefix": "",
     "box_model": "/tmp/box_iou.pt",

@@ -12,9 +12,10 @@ p = {
     "rectangles_per_document": -1,
     "max_rectangles": 100,
     "shown_word_count": 10,
-    "db_root": "./data/da/",
+    "db_root": "./data/storage/",
     "output": "/tmp/qbs.png",
-    "show": False
+    "show": False,
+    "dump_json": False
 }
 
 

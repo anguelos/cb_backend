@@ -10,51 +10,47 @@ import pathlib
 import hashlib
 
 
-class PHOCNet(nn.Module):
+def resume_embedder(fname, allow_fail=True, net=None):
+    if net is not None and allow_fail and not pathlib.Path(fname).is_file():
+        return net, {}
+    store_data = torch.load(fname, map_location="cpu")
+    if net is None:
+        net = eval(store_data["class_name"])(**store_data["contructor_params"])
+    else:
+        assert type(net).__name__ == store_data["class_name"]
+        assert net.params == store_data["contructor_params"]
+    net.load_state_dict(store_data["state_dict"])
+    del store_data["state_dict"]
+    del store_data["contructor_params"]
+    del store_data["class_name"]
+    return net, store_data
 
+
+class Embedder(nn.Module):
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
         super().__init__()
-        # some sanity checks
         if gpp_type not in ['spp', 'tpp', 'gpp']:
             raise ValueError('Unknown pooling_type. Must be either \'gpp\', \'spp\' or \'tpp\'')
-        # set up Conv Layers
-        n_out = len(unigrams)*sum(unigram_pyramids)
         self.unigrams = unigrams
         self.unigram_pyramids = unigram_pyramids
         self.fixed_size = fixed_size
-
-        self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.conv1_2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.conv2_1 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1)
-        self.conv2_2 = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1)
-        self.conv3_1 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_2 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_3 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_4 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_5 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv3_6 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
-        self.conv4_1 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv4_2 = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        self.conv4_3 = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
-        # create the spatial pooling layer
-        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type)
-        pooling_output_size = self.pooling_layer_fn.pooling_output_size
-        self.fc5 = nn.Linear(pooling_output_size, 4096)
-        self.fc6 = nn.Linear(4096, 4096)
-        self.fc7 = nn.Linear(4096, n_out)
         self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "fixed_size": fixed_size,
                        "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
                        "pool_type": pool_type}
 
     def retrieval_distance_metric(self):
-        return "euclidean"
-        #return "cosine"
+        raise NotImplemented()
 
     def arch_hash(self):
-        return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
+        raise NotImplemented()
+        #return hashlib.md5(("Embedder"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
+
+    def forward(self, x):
+        raise NotImplemented()
 
     def save(self, fname, **kwargs):
         store_data = {k: v for k, v in kwargs.items()}
+        store_data["class_name"] = type(self).__name__
         store_data["contructor_params"] = self.params
         store_data["state_dict"] = self.state_dict()
         torch.save(store_data, fname)
@@ -71,31 +67,9 @@ class PHOCNet(nn.Module):
         net.load_state_dict(store_data["state_dict"])
         del store_data["state_dict"]
         del store_data["contructor_params"]
+        del store_data["class_name"]
         return net, store_data
 
-    def forward(self, x):
-        y = F.relu(self.conv1_1(x))
-        y = F.relu(self.conv1_2(y))
-        y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
-        y = F.relu(self.conv2_1(y))
-        y = F.relu(self.conv2_2(y))
-        y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
-        y = F.relu(self.conv3_1(y))
-        y = F.relu(self.conv3_2(y))
-        y = F.relu(self.conv3_3(y))
-        y = F.relu(self.conv3_4(y))
-        y = F.relu(self.conv3_5(y))
-        y = F.relu(self.conv3_6(y))
-        y = F.relu(self.conv4_1(y))
-        y = F.relu(self.conv4_2(y))
-        y = F.relu(self.conv4_3(y))
-        y = self.pooling_layer_fn.forward(y)
-        y = F.relu(self.fc5(y))
-        y = F.dropout(y, p=0.5, training=self.training)
-        y = F.relu(self.fc6(y))
-        y = F.dropout(y, p=0.5, training=self.training)
-        y = self.fc7(y)
-        return y
 
     def embed_strings(self, words):
         words = [unidecode.unidecode(w) for w in words]
@@ -140,6 +114,68 @@ class PHOCNet(nn.Module):
             rectangles = np.concatenate(rectangles, axis=0)
             return rectangles, embedings
 
+
+
+class PHOCNet(Embedder):
+    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
+        super().__init__(unigrams=unigrams, unigram_pyramids=unigram_pyramids, fixed_size=fixed_size, input_channels=input_channels,gpp_type=gpp_type,pooling_levels=pooling_levels, pool_type='max_pool')
+        # some sanity checks
+        # set up Conv Layers
+        n_out = len(unigrams)*sum(unigram_pyramids)
+
+        self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv1_2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv2_1 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1)
+        self.conv2_2 = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1)
+        self.conv3_1 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1)
+        self.conv3_2 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
+        self.conv3_3 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
+        self.conv3_4 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
+        self.conv3_5 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
+        self.conv3_6 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1)
+        self.conv4_1 = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1)
+        self.conv4_2 = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
+        self.conv4_3 = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
+        # create the spatial pooling layer
+        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type)
+        pooling_output_size = self.pooling_layer_fn.pooling_output_size
+        self.fc5 = nn.Linear(pooling_output_size, 4096)
+        self.fc6 = nn.Linear(4096, 4096)
+        self.fc7 = nn.Linear(4096, n_out)
+        self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "fixed_size": fixed_size,
+                       "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
+                       "pool_type": pool_type}
+
+    def retrieval_distance_metric(self):
+        return "cosine"
+
+    def arch_hash(self):
+        return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
+
+    def forward(self, x):
+        y = F.relu(self.conv1_1(x))
+        y = F.relu(self.conv1_2(y))
+        y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
+        y = F.relu(self.conv2_1(y))
+        y = F.relu(self.conv2_2(y))
+        y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
+        y = F.relu(self.conv3_1(y))
+        y = F.relu(self.conv3_2(y))
+        y = F.relu(self.conv3_3(y))
+        y = F.relu(self.conv3_4(y))
+        y = F.relu(self.conv3_5(y))
+        y = F.relu(self.conv3_6(y))
+        y = F.relu(self.conv4_1(y))
+        y = F.relu(self.conv4_2(y))
+        y = F.relu(self.conv4_3(y))
+        y = self.pooling_layer_fn.forward(y)
+        y = F.relu(self.fc5(y))
+        y = F.dropout(y, p=0.5, training=self.training)
+        y = F.relu(self.fc6(y))
+        y = F.dropout(y, p=0.5, training=self.training)
+        y = self.fc7(y)
+        return y
+
     def init_weights(self):
         self.apply(PHOCNet._init_weights_he)
 
@@ -153,3 +189,22 @@ class PHOCNet(nn.Module):
             m.weight.data.normal_(0, (2. / n) ** (1 / 2.0))
             #nn.init.kaiming_normal(m.weight.data)
             nn.init.constant(m.bias.data, 0)
+
+
+class PHOCResNet(Embedder):
+    @staticmethod
+    def _residual_bottleneck(channels_in, channels_out, bottleneck):
+        nn.Sequential(
+            torch.nn.Conv2d(channels_in, bottleneck, 1),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(bottleneck, bottleneck, 3),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(bottleneck, channels_out, 1),
+        )
+
+    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
+        super().__init__(unigrams=unigrams, unigram_pyramids=unigram_pyramids, fixed_size=fixed_size, input_channels=input_channels,gpp_type=gpp_type,pooling_levels=pooling_levels, pool_type='max_pool')
+        n_out = len(unigrams)*sum(unigram_pyramids)
+        self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=256, kernel_size=7, stride=1, padding=1)
+        self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=256, kernel_size=7, stride=1, padding=1)
+
