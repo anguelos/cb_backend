@@ -67,7 +67,9 @@ class NumpyIndex(AbstractIndex):
         self.image_heights = np.empty(nb_embeddings, dtype=int)
 
     def _update_norms(self):
+        epsilon = .00000001
         self.embedding_norms = np.sqrt((self.embeddings ** 2).sum(axis=1))[:, np.newaxis]
+        self.embedding_norms[self.embedding_norms < epsilon] = epsilon
 
     def _reset_nb_embeddings(self, nb_embeddings: int)->None:
         self.idx = np.arange(nb_embeddings, dtype=int)
@@ -129,20 +131,17 @@ class NumpyIndex(AbstractIndex):
         norms = self.embedding_norms[ctx_idx, :]
         q_norm = np.sqrt((query_embedding ** 2).sum(axis=1))[:, np.newaxis]
         reversed_ctx_idx = self.idx[ctx_idx]
-
         doted = np.dot(embeddings, query_embedding.T)
         dissimilarity = 1 - doted / (norms * q_norm)
-
-        sorted_ctx_idx = np.argsort(dissimilarity)
+        sorted_ctx_idx = np.argsort(dissimilarity[:,0])
         response_idx = reversed_ctx_idx[sorted_ctx_idx]
         return response_idx, dissimilarity
 
-    def _generate_perdoc_occurence_limit(self, response_idx:np.array, max_responces_perdoc:int)->np.array:
-        print("max_respoces:",max_responces_perdoc)
+    def _generate_perdoc_occurence_limit(self, response_idx:np.array, max_responces_perdoc:int) -> np.array:
         if max_responces_perdoc <=0:
-            print("response_idx.shape", response_idx.shape)
+            #print("response_idx.shape", response_idx.shape)
             filter = np.ones(response_idx.shape, dtype=np.bool)
-            print("filter.shape", filter.shape)
+            #print("filter.shape", filter.shape)
         else:
             response_doccodes = self.doccodes[response_idx]
             occurences = np.zeros([response_idx.shape[0], self.docnames.shape[0]])
@@ -158,14 +157,14 @@ class NumpyIndex(AbstractIndex):
             responce_idx, similarity = self._retrieve_cosine(query_embedding, ctx_docnames)
         else:
             raise NotImplementedError(self.metric)
-        print("responce1:", responce_idx)
         responce_idx, similarity = responce_idx[:max_responces], similarity[:max_responces]
+        #print("responce1:", responce_idx)
         filter_by_doc_occurences = self._generate_perdoc_occurence_limit(responce_idx, max_occurence_per_document)
-        print("filter:",filter_by_doc_occurences)
+        #print("filter:",filter_by_doc_occurences)
         responce_idx, similarity = responce_idx[filter_by_doc_occurences], similarity[filter_by_doc_occurences]
-        print("responce2:", responce_idx)
+        #print("responce2:", responce_idx)
         res = self._idx_to_response(responce_idx)
-        print("responce3:", repr(res))
+        #print("responce3:", repr(res))
         return res
 
     def save(self, path):
@@ -297,10 +296,8 @@ class NumpyIndex(AbstractIndex):
         self.embeddings[:, self.embedding_size // 2:] = np.random.rand(self.nb_embeddings, self.embedding_size - self.embedding_size // 2)
         self.left = np.random.randint(0, page_width, self.nb_embeddings)
         self.top = np.random.randint(0, page_height, self.nb_embeddings)
-        self.right = self.left + np.random.randint(min_word_width, max_word_width,
-                                                                          self.nb_embeddings)
-        self.bottom = self.top + np.random.randint(min_word_height,
-                                                                          max_word_height, self.nb_embeddings)
+        self.right = self.left + np.random.randint(min_word_width, max_word_width, self.nb_embeddings)
+        self.bottom = self.top + np.random.randint(min_word_height, max_word_height, self.nb_embeddings)
         self.image_widths[:] = page_width
         self.image_heights[:] = page_height
         pages = np.random.randint(0, docids_pagenums.shape[0], self.nb_embeddings)
