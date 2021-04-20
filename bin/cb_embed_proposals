@@ -53,7 +53,7 @@ if __name__ == "__main__":
     p, _ = fargv.fargv(p)
     t = time.time()
     net_path = str(pathlib.Path(p.phocnet).resolve())
-    net, _ = cbphocnet.PHOCNet.resume(net_path)
+    net, _ = cbphocnet.resume_embedder(net_path)
     net_hash = hashlib.md5()
     with open(p.phocnet, "rb") as f:
         for chunk in iter(lambda: f.read(1024**2), b""):

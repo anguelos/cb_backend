@@ -1,0 +1,48 @@
+{
+  "$comment": "Reply JSON definition",
+  "$schema": "http://todo",
+  "type": "object",
+  "properties": {
+    "rectangles": {
+      "type": "array",
+      "items":{
+      "type": "array",
+      "items": [
+        {
+          "type": "string"
+        },
+        {
+          "$comment": "Page number ",
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "$comment": "LEFT",
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "$comment": "TOP",
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "$comment": "RIGHT",
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "$comment": "BOTTOM",
+          "type": "integer",
+          "minimum": 1
+        }
+      ],
+      "minItems": 6,
+      "maxItems": 6
+    }
+    }
+  },
+  "required": [
+    "rectangles"
+  ]
+}

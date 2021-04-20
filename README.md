@@ -1,5 +1,4 @@
 Download annotated words:
-
 ```bash
 wget http://rr.visioner.ca/assets/cbws/data.tar.gz
 tar -xpvzf data.tar.gz
@@ -11,18 +10,18 @@ Train components
 PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_train_component_classifier -binary_images ./data/annotated/*/*bin.png -annotations ./data/annotated/*/*.gt.json
 ```
 
-create proposals
+Create proposals
 ```bash
 PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_propose_words -prob_images ./data/fake_db/*/*bin.png -target_postfix .words.json
 ```
 
-create proposals in parallel
+Create proposals in parallel
 ```bash
 export PYTHONPATH="./:./thirdparty/iunets"
 ls ./data/fake_db/blovice/*.bin.png | parallel -j 4 ./bin/cb_propose_words -prob_images {} -device cpu
 ```
 
-evaluate proposals
+Evaluate proposals
 ```bash
 PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_evaluate_proposals.py -proposals ./data/annotated/blovice/*words.json -gt ./data/annotated/blovice/*gt.json -iou_threshold=.5
 ```

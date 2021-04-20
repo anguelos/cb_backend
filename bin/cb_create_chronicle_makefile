@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+import fargv
+import glob
+import os
+import cbdiadb
+import glob
+
+p = {
+    "phocnet": "./models/phocnet_0x0.pt",
+    "binnet": "./models/srunet.pt",
+    "ccnet": "./models/box_iou.pt",
+    "pythonpath": "{cb_root}:{cb_root}/thirdaparty/iunets/",
+    "chronicles": set(),
+    "cb_root": "./",
+    "bin_postfix": ".bin.png",
+    "proposals_extention": ".words.pickle",
+}
+
+
+def binarize_cmd(cb_root, in_img, binet_path, out_postfix):
+    dependencies = f"{binet_path} {in_img}"
+    cmd = f"{cb_root}/cb_binarize -max_device_mp 2. -input {in_img} -resume_fname {binet_path} -cache_binary_postfix {out_postfix}"
+    target = f"{in_img}{out_postfix}"
+    return target, dependencies, cmd
+
+
+def propose_words_cmd(cb_root, prob_img, out_postfix=".words.json", box_model="./models/box_iou.pt", device="cpu"):
+    base_page_path = lambda x: os.path.splitext(os.path.splitext(os.path.splitext(x)[0])[0])[0]
+    target = f"{base_page_path(prob_img)}{out_postfix}"
+    dependencies = f"{prob_img} {box_model}"
+    cmd = f"{cb_root}/cb_propose_words -prob_images {prob_img} -target_postfix {out_postfix} -box_model {box_model} -device {device}"
+    return target, dependencies, cmd
+
+
+def embed_words_cmd(cb_root, docname, image_glob, words_glob, output_basename, output_root, output_endname=".pickle", device="cuda"):
+    pass
+    #./bin/cb_embed_proposal -phocnet ./models/phocnet_0x0.pt
+    #     "phocnet":"./models/phocnet_0x0.pt",
+     ,
+     "db_root":"./data/fake_db",
+     "image_glob":"{db_root}/{docname}/*jp2",
+     "words_glob":"{db_root}/{docname}/*.words.pickle",
+     "output_basename":"./data/compiled_fake_db/{docname}",
+     "batch_size": 1,
+     "device":"cuda"
+
+
+
+def render_makefile(chronicle_path,binarization_postfix, proposals_extention):
+    images = [os.path.basename(n) for n in glob.glob(chronicle_path+"/*.jp2")]
+    bin_images = [i + binarization_postfix for i in images]
+    word_proposals = [cbdiadb.filepath_to_page(i) + proposals_extention for i in images]
+
+
+

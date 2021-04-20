@@ -1,0 +1,19 @@
+{
+  "doc_ids": [
+    "chronicle/soap-kv/soap-kv_00246_obec-jakubov-1958",
+    "chronicle/soap-ch/soap-ch_00001_mesto-cheb-enngelhart-kopie-1560-sig519",
+    "chronicle/soap-ch/soap-ch_00537_obec-ovesne-kladruby-1945-1952"
+  ],
+  "query": {
+    "q_ref": {
+      "doc_id": "chronicle/soap-so/soap-so_00100_mesto-horni-slavkov-1836-1847",
+      "page_num": 100,
+      "left": 50,
+      "top": 100,
+      "right": 250,
+      "bottom": 130
+    }
+  },
+  "rectangles_per_documnet": 100,
+  "max_rectangles": 20000
+}

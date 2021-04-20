@@ -1,0 +1,84 @@
+{
+  "$comment": "Query JSON definition",
+  "$schema": "http://todo",
+  "definitions": {
+    "qbe": {
+      "type": "object",
+      "properties": {
+        "doc_id": {
+          "type": "string"
+        },
+        "page_num": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "left": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "right": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "top": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "doc_id",
+        "page_num",
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ]
+    },
+    "query": {
+      "type": "object",
+      "properties": {
+        "q_ref": {
+          "$ref": "#/definitions/qbe"
+        },
+        "q_img": {
+          "type": "string"
+        },
+        "q_str": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "doc_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "query": {
+      "$ref": "#/definitions/query"
+    },
+    "rectangles_per_documnet": {
+      "type": "integer",
+      "minimum": -1
+    },
+    "max_rectangles": {
+      "type": "number",
+      "maximum": 100000,
+      "minimum": 1
+    }
+  },
+  "required": [
+    "doc_ids",
+    "query",
+    "rectangles_per_documnet",
+    "max_rectangles"
+  ]
+}
