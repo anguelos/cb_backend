@@ -224,13 +224,13 @@ class NumpyIndex(AbstractIndex):
     #     return idx
 
     @classmethod
-    def load_documents(cls, document_pickles, document_root, net):
+    def load_documents(cls, document_pickles, document_root, net, embedding_dtype=np.double):
         all_t = time.time()
         all_chronicles = []
         for filename in document_pickles:
             with open(filename, "rb") as fd:
                 all_chronicles.append(pickle.load(fd))
-        idx = cls(nb_embeddings=1, embedding_size=1, nb_documents=len(document_pickles), metric=net.retrieval_distance_metric())
+        idx = cls(nb_embeddings=1, embedding_size=1, nb_documents=len(document_pickles), metric=net.retrieval_distance_metric(), embedding_dtype=embedding_dtype)
         netarch_hash = net.arch_hash()
         doc_id = 0
         doccodes = []
@@ -253,7 +253,7 @@ class NumpyIndex(AbstractIndex):
             top.append(chronicle_data["boxes"][:, 1])
             right.append(chronicle_data["boxes"][:, 2])
             bottom.append(chronicle_data["boxes"][:, 3])
-            embeddings.append(chronicle_data["embeddings"])
+            embeddings.append(chronicle_data["embeddings"].astype(idx.embedding_dtype))
             image_widths.append(np.array([sz[0] for sz in page_sizes], dtype=np.int))
             image_heights.append(np.array([sz[1] for sz in page_sizes], dtype=np.int))
             assert netarch_hash == chronicle_data["netarch_hash"] # one index must have compatible embeddings
@@ -268,7 +268,6 @@ class NumpyIndex(AbstractIndex):
         idx.image_widths = np.concatenate(image_widths, axis=0)
         idx.image_heights = np.concatenate(image_heights, axis=0)
         idx.idx = np.arange(idx.embeddings.shape[0], dtype=np.long)
-        idx.embeddings = embeddings.astype(idx.embedding_dtype)
         if idx.metric == "cosine":
             idx._update_norms()
         print(f"{(time.time() - all_t):10.5}: Loaded {idx.embeddings.shape[0]} of {idx.embeddings.shape[1]} in total.")
