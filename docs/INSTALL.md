@@ -1,4 +1,11 @@
-###Installing MKL:
+### Install packages in ubuntu for deployment and remote development
+```bash
+sudo apt-get install parallel byobu mc lynx python3-pip 
+```
+
+### Installing MKL:
+This is not required for fast numpy indexing as the intel-scipy provides an MKL multithreaded backend.   
+
 based on https://github.com/eddelbuettel/mkl4deb
 ```bash
 cd /tmp
