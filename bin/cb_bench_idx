@@ -31,7 +31,7 @@ if __name__=="__main__":
                           """PYTHONPATH="./" ./bin/mock_server -document_root '/data/archiv/public/'""")
     }
     params, _ = fargv.fargv(params)
-    time.time()
+    t = time.time()
     embedding_net, _ = cbphocnet.resume_embedder(params.embeding_net)
     print(f"{time.time()-t:10.5} Net Loaded")
     db = NumpyIndex.load_documents(params.indexed_documents, document_root=params.document_root, net=embedding_net)
