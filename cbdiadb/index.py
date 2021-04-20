@@ -51,8 +51,9 @@ class NumpyIndex(AbstractIndex):
     def nb_documents(self):
         return self.docnames.shape[0]
 
-    def __init__(self, nb_embeddings: int, embedding_size: int, nb_documents: int, metric:str, embedding_dtype=np.float16):
+    def __init__(self, nb_embeddings: int, embedding_size: int, nb_documents: int, metric:str, embedding_dtype=np.double):
         assert metric in ["euclidean", "cosine"]
+        self.embedding_dtype = embedding_dtype
         self.metric = metric
         self.docnames = np.empty(nb_documents, dtype=object)
         self.idx = np.arange(nb_embeddings, dtype=int)
@@ -267,6 +268,7 @@ class NumpyIndex(AbstractIndex):
         idx.image_widths = np.concatenate(image_widths, axis=0)
         idx.image_heights = np.concatenate(image_heights, axis=0)
         idx.idx = np.arange(idx.embeddings.shape[0], dtype=np.long)
+        idx.embeddings = embeddings.astype(idx.embedding_dtype)
         if idx.metric == "cosine":
             idx._update_norms()
         print(f"{(time.time() - all_t):10.5}: Loaded {idx.embeddings.shape[0]} of {idx.embeddings.shape[1]} in total.")
