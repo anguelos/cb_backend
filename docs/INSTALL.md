@@ -27,3 +27,12 @@ sudo ldconfig
 
 sudo sh -c 'echo "MKL_THREADING_LAYER=GNU" >> /etc/environment' # ~/.bash_profile and other locations works as well
 ```
+
+```bash
+mkdir data
+mkdir data/
+cd ./data/
+wget rr.visioner.ca/assets/cbws/fake_db.tar.bz2
+tar -xpvjf fake_db.tar.bz2
+
+```
