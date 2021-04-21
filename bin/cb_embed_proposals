@@ -27,11 +27,13 @@ p = {
      "db_root":"./data/fake_db",
      "image_glob":"{db_root}/{docname}/*jp2",
      "words_glob":"{db_root}/{docname}/*.words.pickle",
+     "image_files": set([]),
+     "words_files": set([]),
      "output_basename":"./data/compiled_fake_db/{docname}",
-     "output_endname":".pickle",
+     "output_postfix":".pickle",
      "append_boxcount_to_output": False,
      "batch_size": 1,
-     "device":"cuda"
+     "device": "cuda"
 }
 
 
@@ -59,8 +61,12 @@ if __name__ == "__main__":
         for chunk in iter(lambda: f.read(1024**2), b""):
             net_hash.update(chunk)
     net_hash = net_hash.hexdigest()
-    image_files = glob.glob(p.image_glob)
-    words_files = glob.glob(p.words_glob)
+    if p.image_files == p.words_files == set([]):
+        image_files = glob.glob(p.image_glob)
+        words_files = glob.glob(p.words_glob)
+    else:
+        image_files = p.image_files
+        words_files = p.words_files
     pageid2page = cbdiadb.pageids_to_filepaths(image_files, db_root=p.db_root)
     pageid2words = cbdiadb.pageids_to_filepaths(words_files, db_root=p.db_root)
     assert pageid2page.keys() == pageid2words.keys()
@@ -85,7 +91,7 @@ if __name__ == "__main__":
         fname_data_description = f".P{len(image_files):06}_B{all_boxes.shape[0]:08}_SZ{all_embeddings.shape[1]:06}"
     else:
         fname_data_description = f".SZ{all_embeddings.shape[1]:06}"
-    output_filename = f"{p.output_basename}{p.output_endname}"
+    output_filename = f"{p.output_basename}{p.output_postfix}"
     with open(output_filename, "wb") as fd:
         pickle.dump(outputs, fd)
     print(f"Computed {all_boxes.shape[0]} from {len(image_files)} pages in {(time.time() - t):7.3} sec.")

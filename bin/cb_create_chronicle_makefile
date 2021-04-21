@@ -1,56 +1,105 @@
 #!/usr/bin/env python3
 
 import fargv
-import glob
+import tqdm
+import pathlib
 import os
 import cbdiadb
 import glob
 
+def _absolute(path):
+    return str(pathlib.Path(path).resolve())
+
+def binarize_cmd(cb_root, in_img_list, binnet_path, out_postfix, max_device_mp, other_dependencies=""):
+    all_in_imgs = ' '.join(in_img_list)
+    dependencies = f"{binnet_path} {all_in_imgs} {other_dependencies}"
+    cmd = f"{cb_root}/bin/cb_binarize -max_device_mp {float(max_device_mp)} -input {all_in_imgs} -resume_fname {binnet_path} -cache_binary_postfix {out_postfix}" + "\n\n"
+    targets = [f"{in_img}{out_postfix}" for in_img in in_img_list]
+    return targets, dependencies, cmd
+
+
+def propose_words_cmd(cb_root, prob_img_list, proposal_params, out_postfix=".words.json", box_model="./models/box_iou.pt", device="cpu", other_dependencies="", parallel=1):
+    def base_page_path(p):
+        return os.path.splitext(os.path.splitext(os.path.splitext(p)[0])[0])[0]
+    targets = [f"{base_page_path(prob_img)}{out_postfix}" for prob_img in prob_img_list]
+    dependencies = f"{' '.join(prob_img_list)} {box_model} {other_dependencies}"
+    if parallel > 1:
+        cmd = f"ls {' '.join(prob_img_list)} | parallel -j {parallel}  {cb_root}/cb_propose_words -prob_images {{}} -target_postfix {out_postfix} -box_model {box_model} -device {device} " + proposal_params + "\n\n"
+    else:
+        cmd = f"{cb_root}/bin/cb_propose_words -prob_images {prob_img_list} -target_postfix {out_postfix} -box_model {box_model} -device {device}" + proposal_params + "\n\n"
+    return targets, dependencies, cmd
+
+
+def embed_words_cmd(cb_root, db_root, docname, phocnet_path, image_files, words_files, output_basename, output_postfix=".pickle", device="cuda", other_dependencies=""):
+    targets = [f"{db_root}/{docname}{output_postfix}"]
+    dependencies = ' '.join(image_files + words_files + [phocnet_path])
+    dependencies = f"{dependencies} {other_dependencies}"
+    cmd = f"{cb_root}/bin/cb_embed_proposals -phocnet {phocnet_path} -docname {docname} -dbroot {db_root} -image_files {' '.join(image_files)} -words_files {' '.join(words_files)} -output_basename {output_basename} -device {device}" + "\n\n"
+    return targets, dependencies, cmd
+
+
+def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxnet_path, phocnet_path, binarization_postfix, max_device_mp, proposals_postfix, proposal_params, parallel_proposals, archive_location, archive_postfix, pythonpath):
+    pythonpath = ":".join([_absolute(ppath) for ppath in pythonpath.split(":")])
+    db_root = _absolute(db_root)
+    cb_root = _absolute(cb_root)
+    binnet_path = _absolute(binnet_path)
+    boxnet_path = _absolute(boxnet_path)
+    phocnet_path = _absolute(phocnet_path)
+    input_images = glob.glob(f"{db_root}/{chronicle_name}/*.jp2")
+    docname = os.path.split(chronicle_name)[1]
+    if docname == '':
+        docname = os.path.split(chronicle_name[:-1])
+
+    prob_images, bin_dependencies, bin_cmd = binarize_cmd(cb_root=cb_root, in_img_list=input_images, binnet_path=binnet_path, out_postfix=binarization_postfix, max_device_mp=max_device_mp)
+    makefile_str = f"\n{' '.join(prob_images)}:{bin_dependencies}\n\t{bin_cmd}"
+
+    proposals, proposal_dependencies, proposals_cmd = propose_words_cmd(cb_root=cb_root, prob_img_list= prob_images, out_postfix=proposals_postfix, box_model=boxnet_path, device=device, parallel=parallel_proposals, proposal_params=proposal_params)
+    makefile_str += f"\n{' '.join(proposals)}:{proposal_dependencies}\n\t{proposals_cmd}\n"
+
+    document_archives, document_dependencies, document_cmd = embed_words_cmd(cb_root=cb_root, db_root=db_root, docname=docname, phocnet_path=phocnet_path, image_files=input_images, words_files=proposals, output_basename=archive_location, output_postfix=archive_postfix, device=device)
+    makefile_str += f"\n{document_archives[0]}:{document_dependencies}\n\t{document_cmd}\n"
+
+    makefile_str = f"ALL: {document_archives[0]}\n" + makefile_str
+
+    makefile_str = f".EXPORT_ALL_VARIABLES:\n\nPYTHONPATH = {pythonpath}\n\n" +makefile_str
+
+    makefile_str += f"clean_bin:\n\trm {' '.join(prob_images)}\n\n"
+    makefile_str += f"clean_boxes:\n\trm {' '.join(proposals)}\n\n"
+    makefile_str += f"clean_embeddings:\n\trm {document_archives[0]}\n\n"
+    makefile_str += f"clean: clean_bin clean_boxes clean_embeddings\n\techo 'Removing all'\n"
+
+    return makefile_str
+
+
 p = {
-    "phocnet": "./models/phocnet_0x0.pt",
-    "binnet": "./models/srunet.pt",
-    "ccnet": "./models/box_iou.pt",
-    "pythonpath": "{cb_root}:{cb_root}/thirdaparty/iunets/",
-    "chronicles": set(),
+    "chronicle_paths": set(glob.glob("./data/fake_db/*/*/*")),
+    "device": "cuda",
     "cb_root": "./",
-    "bin_postfix": ".bin.png",
-    "proposals_extention": ".words.pickle",
+    "db_root": "./data/fake_db/",
+    "binnet_path": "./models/srunet.pt",
+    "boxnet_path": "./models/box_iou.pt",
+    "phocnet_path": "./models/phocnet_0x0.pt",
+    "binarization_postfix": ".bin.png",
+    "max_device_mp": 20.,
+    "proposals_postfix": ".words.pickle",
+    "archive_postfix": ".pickle",
+    "archive_location": "./data/compiled_fake_db/",
+    "parallel_proposals": 4,
+    "proposal_params": " -rlsa_distances '[0,2,4,6,12,18,24]' -thresholds '[32, 64, 128, 224]' -nms_threshold .6 -min_word_length 8 -min_word_height 6 -max_word_length .2 -max_word_height .1 ",
+    "pythonpath": "./:./thirdparty/iunets/",
 }
 
 
-def binarize_cmd(cb_root, in_img, binet_path, out_postfix):
-    dependencies = f"{binet_path} {in_img}"
-    cmd = f"{cb_root}/cb_binarize -max_device_mp 2. -input {in_img} -resume_fname {binet_path} -cache_binary_postfix {out_postfix}"
-    target = f"{in_img}{out_postfix}"
-    return target, dependencies, cmd
-
-
-def propose_words_cmd(cb_root, prob_img, out_postfix=".words.json", box_model="./models/box_iou.pt", device="cpu"):
-    base_page_path = lambda x: os.path.splitext(os.path.splitext(os.path.splitext(x)[0])[0])[0]
-    target = f"{base_page_path(prob_img)}{out_postfix}"
-    dependencies = f"{prob_img} {box_model}"
-    cmd = f"{cb_root}/cb_propose_words -prob_images {prob_img} -target_postfix {out_postfix} -box_model {box_model} -device {device}"
-    return target, dependencies, cmd
-
-
-def embed_words_cmd(cb_root, docname, image_glob, words_glob, output_basename, output_root, output_endname=".pickle", device="cuda"):
-    pass
-    #./bin/cb_embed_proposal -phocnet ./models/phocnet_0x0.pt
-    #     "phocnet":"./models/phocnet_0x0.pt",
-     ,
-     "db_root":"./data/fake_db",
-     "image_glob":"{db_root}/{docname}/*jp2",
-     "words_glob":"{db_root}/{docname}/*.words.pickle",
-     "output_basename":"./data/compiled_fake_db/{docname}",
-     "batch_size": 1,
-     "device":"cuda"
-
-
-
-def render_makefile(chronicle_path,binarization_postfix, proposals_extention):
-    images = [os.path.basename(n) for n in glob.glob(chronicle_path+"/*.jp2")]
-    bin_images = [i + binarization_postfix for i in images]
-    word_proposals = [cbdiadb.filepath_to_page(i) + proposals_extention for i in images]
-
-
-
+if __name__ == "__main__":
+    p, _ = fargv.fargv(p, return_type="dict")
+    for chronicle_path in tqdm.tqdm(p["chronicle_paths"]):
+        chronicle_path = _absolute(chronicle_path)
+        p["db_root"] = _absolute(p["db_root"])
+        p["archive_location"] = _absolute(p["archive_location"])
+        makefile_path = f"{chronicle_path}/Makefile"
+        kwargs = {}
+        kwargs.update(p)
+        del kwargs["chronicle_paths"]
+        kwargs["chronicle_name"] = cbdiadb.documentpath_to_documentid(documentpath=chronicle_path, document_root=p["db_root"])
+        makefile_str = render_makefile(**kwargs)
+        open(makefile_path, "wt").write(makefile_str)
