@@ -55,7 +55,7 @@ class CBDataset(object):
             #print(f"Words:{len(data)}, Unique:{len(occurrences)}, Non singleton:{len([k for k,v in occurrences.items() if v>1])}  keeping: {len(res)}")
             return res
 
-    def __init__(self, img_glob, gt_glob, cache_fname="/tmp/cb_ds_P{}_T{}_C{}_{}x{}.pt", net=None, train=True, test_glob="*/blovice_1/*", input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
+    def __init__(self, img_paths=[], gt_paths=[], img_glob="", gt_glob="", cache_fname="/tmp/cb_ds_P{}_T{}_C{}_{}x{}.pt", net=None, train=True, test_glob="*/blovice_1/*", input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
                  unigrams=string.digits+string.ascii_lowercase, max_items=-1, keep_singletons=True):
         if net is not None:
             phoc_pyramids = net.params["unigram_pyramids"]
@@ -72,8 +72,9 @@ class CBDataset(object):
         if os.path.exists(cache_fname):
             self.data = torch.load(cache_fname)
         else:
-            img_paths = glob.glob(img_glob)
-            gt_paths = glob.glob(gt_glob)
+            if img_paths == gt_paths == []:
+                img_paths = glob.glob(img_glob)
+                gt_paths = glob.glob(gt_glob)
             if test_glob:
                 if train: # test_glob and test
                     gt_paths = sorted(set(gt_paths) - set(glob.glob(test_glob)))
