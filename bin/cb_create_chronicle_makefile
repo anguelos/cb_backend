@@ -56,7 +56,7 @@ def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxne
     proposals, proposal_dependencies, proposals_cmd = propose_words_cmd(cb_root=cb_root, prob_img_list= prob_images, out_postfix=proposals_postfix, box_model=boxnet_path, device=device, parallel=parallel_proposals, proposal_params=proposal_params)
     makefile_str += f"\n{' '.join(proposals)}:{proposal_dependencies}\n\t{proposals_cmd}\n"
 
-    document_archives, document_dependencies, document_cmd = embed_words_cmd(cb_root=cb_root, db_root=db_root, docname=docname, phocnet_path=phocnet_path, image_files=input_images, words_files=proposals, output_basename=archive_location, output_postfix=archive_postfix, device=device)
+    document_archives, document_dependencies, document_cmd = embed_words_cmd(cb_root=cb_root, db_root=db_root, docname=chronicle_name, phocnet_path=phocnet_path, image_files=input_images, words_files=proposals, output_basename=archive_location, output_postfix=archive_postfix, device=device)
     makefile_str += f"\n{document_archives[0]}:{document_dependencies}\n\t{document_cmd}\n"
 
     makefile_str = f"ALL: {document_archives[0]}\n" + makefile_str
