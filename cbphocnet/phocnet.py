@@ -153,6 +153,10 @@ class PHOCNet(Embedder):
         return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
 
     def forward(self, x):
+        if x.size(2) < 8:
+            x = F.pad(x, (0,0, 4, 4))
+        if x.size(3) < 8:
+            x = F.pad(x, (4,4, 0, 0))
         y = F.relu(self.conv1_1(x))
         y = F.relu(self.conv1_2(y))
         y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
