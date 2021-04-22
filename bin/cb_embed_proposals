@@ -94,7 +94,7 @@ if __name__ == "__main__":
     chronicle_name = p.docname.split("/")[-1]
     if chronicle_name == "":
         chronicle_name = p.docname.split("/")[-2]
-    output_filename = f"{p.output_basename}{chronicle_name}{p.output_postfix}"
+    output_filename = f"{p.output_basename}/{chronicle_name}{p.output_postfix}"
     with open(output_filename, "wb") as fd:
         pickle.dump(outputs, fd)
     print(f"Computed {all_boxes.shape[0]} from {len(image_files)} pages in {(time.time() - t):7.3} sec.")
