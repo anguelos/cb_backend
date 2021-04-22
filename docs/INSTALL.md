@@ -3,6 +3,11 @@
 sudo apt-get install parallel byobu mc lynx python3-pip 
 ```
 
+### If you have no root:
+```bash
+wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py --user
+```
+
 ### Installing MKL:
 This is not required for fast numpy indexing as the intel-scipy provides an MKL multithreaded backend.   
 
@@ -28,11 +33,17 @@ sudo ldconfig
 sudo sh -c 'echo "MKL_THREADING_LAYER=GNU" >> /etc/environment' # ~/.bash_profile and other locations works as well
 ```
 
+### Install train/evaluation data and models
 ```bash
-mkdir data
-mkdir data/
+mkdir -p models
+mkdir -p ./data/compiled_fake_db/
 cd ./data/
 wget rr.visioner.ca/assets/cbws/fake_db.tar.bz2
 tar -xpvjf fake_db.tar.bz2
+cd ../models
+wget rr.visioner.ca/assets/cbws/phocnet_0x0.pt
+wget rr.visioner.ca/assets/cbws/srunet.pt
+wget rr.visioner.ca/assets/cbws/box_iou.pt
+cd ..
 
 ```

@@ -24,7 +24,7 @@ def propose_words_cmd(cb_root, prob_img_list, proposal_params, out_postfix=".wor
     targets = [f"{base_page_path(prob_img)}{out_postfix}" for prob_img in prob_img_list]
     dependencies = f"{' '.join(prob_img_list)} {box_model} {other_dependencies}"
     if parallel > 1:
-        cmd = f"ls {' '.join(prob_img_list)} | parallel -j {parallel}  {cb_root}/cb_propose_words -prob_images {{}} -target_postfix {out_postfix} -box_model {box_model} -device {device} " + proposal_params + "\n\n"
+        cmd = f"ls {' '.join(prob_img_list)} | parallel -j {parallel}  {cb_root}/bin/cb_propose_words -prob_images {{}} -target_postfix {out_postfix} -box_model {box_model} -device {device} " + proposal_params + "\n\n"
     else:
         cmd = f"{cb_root}/bin/cb_propose_words -prob_images {prob_img_list} -target_postfix {out_postfix} -box_model {box_model} -device {device}" + proposal_params + "\n\n"
     return targets, dependencies, cmd
