@@ -1,11 +1,5 @@
-Download annotated words:
-```bash
-wget http://rr.visioner.ca/assets/cbws/data.tar.gz
-tar -xpvzf data.tar.gz
-rm data.tar.gz
-```
-
 Train components
+
 ```bash
 PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_train_component_classifier -binary_images ./data/annotated/*/*bin.png -annotations ./data/annotated/*/*.gt.json
 ```

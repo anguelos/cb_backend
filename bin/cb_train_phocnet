@@ -6,15 +6,17 @@ import numpy as np
 import scipy.spatial.distance
 import time
 import tqdm
+import glob
 
 p = {
-    "resume_path":"./models/phocnet_{fixed_size}.pt",
-    "unigrams":"abcdefghijklmnopqrstuvwxyz0123456789",
+    "arch": "phocnet",
+    "resume_path": "./models/{arch}_{fixed_size}.pt",
+    "unigrams": "abcdefghijklmnopqrstuvwxyz0123456789",
     "pyramid_levels":[1, 2, 3, 4, 5],
     "input_channels": 1,
     "lr":.0001,
     "batch_size": 1,
-    "fixed_size":"0x0",
+    "fixed_size": "0x0",
     "optimizer": ("adam", "sgd"),
     "momentum": .9,
     "weight_decay": 0.00005,
@@ -23,8 +25,12 @@ p = {
     "pseudo_batch_size": 1,
     "epochs": 100,
     "device": "cuda",
-    "img_glob":"./data/fake_db/*/*jp2",
-    "gt_glob": "./data/fake_db/*/*gt.json",
+    "img_glob": "./data/fake_db/*/*jp2",
+    "gt_glob":  "./data/fake_db/*/*gt.json",
+    "train_images": set(glob.glob("./data/fake_db/*/*jp2")),
+    "train_gts": set(glob.glob("./data/fake_db/*/*gt.json")),
+    "test_images": set(glob.glob("./data/fake_db/*/*jp2")),
+    "test_gts": set(glob.glob("./data/fake_db/*/*gt.json")),
     "testset_glob":"./data/fake_db/blovice_1/*",
     "test_set_max_items": 1000,
     "validate_freq":1,
@@ -119,7 +125,10 @@ if __name__ == "__main__":
     else:
         raise ValueError
 
-    net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
+    if p.arch == "phocnet":
+        net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
+    else:
+        raise NotImplementedError
     try:
         net, train_state = cbphocnet.PHOCNet.resume(p.resume_path, net=net)
     except FileNotFoundError:
@@ -132,9 +141,11 @@ if __name__ == "__main__":
         optimizer = torch.optim.Adam(net.parameters(), lr=p.lr, weight_decay=p.weight_decay)
     else:
         raise ValueError
-    trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
-    testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net,
-                                  keep_singletons=False, max_items=p.test_set_max_items)
+    #trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
+    #testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net, keep_singletons=False, max_items=p.test_set_max_items)
+    trainset = cbphocnet.CBDataset(img_paths=p.train_images, gt_paths=p.train_gts, test_glob=p.testset_glob, train=True,
+                                   net=net)
+    testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, test_glob=p.testset_glob, train=False, net=net, keep_singletons=False, max_items=p.test_set_max_items)
     trange = tqdm.trange(p.epochs)
     for epoch in trange:
         train_state = run_epoch(epoch=epoch, net=net, trainset=trainset, testset=testset, optimizer=optimizer, criterium=criterium, train_state=train_state, params=p)
