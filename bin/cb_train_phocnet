@@ -100,7 +100,7 @@ def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, 
     train_state["losses"].append(loss)
     train_state["batch_sizes"].append(params.batch_size)
     train_state["pseudo_batch_sizes"].append(params.pseudo_batch_size)
-    train_state["parameters"] = params._asdict()
+    train_state["parameters"] = vars(params)
     train_state["start_times"].append(start_time)
     train_state["end_times"].append(time.time())
     if epoch % params.save_freq == 0:
