@@ -29,8 +29,8 @@ p = {
      "words_glob":"{db_root}/{docname}/*.words.pickle",
      "image_files": set([]),
      "words_files": set([]),
-     "output_basename":"./data/compiled_fake_db/{docname}",
-     "output_postfix":".pickle",
+     "output_basename": "./data/compiled_fake_db/",
+     "output_postfix": ".pickle",
      "append_boxcount_to_output": False,
      "batch_size": 1,
      "device": "cuda"
@@ -91,7 +91,9 @@ if __name__ == "__main__":
         fname_data_description = f".P{len(image_files):06}_B{all_boxes.shape[0]:08}_SZ{all_embeddings.shape[1]:06}"
     else:
         fname_data_description = f".SZ{all_embeddings.shape[1]:06}"
-    chronicle_name = p.docname.replace("/", "_")
+    chronicle_name = p.docname.split("/")[-1]
+    if chronicle_name == "":
+        chronicle_name = p.docname.split("/")[-2]
     output_filename = f"{p.output_basename}{chronicle_name}{p.output_postfix}"
     with open(output_filename, "wb") as fd:
         pickle.dump(outputs, fd)
