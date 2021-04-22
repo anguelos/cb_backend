@@ -21,8 +21,8 @@ p = {
     "target_postfix": ".words.pickle",
     "target_prefix": "",
     "box_model": "/tmp/box_iou.pt",
-    "rlsa_distances": "[0,2,4,6,12,18,24]",
-    "thresholds": "[32, 64, 128, 224]",
+    "rlsa_distances": [0,2,4,6,12,18,24],
+    "thresholds": [32, 64, 128, 224],
     "nms_threshold": .6,
     "min_word_length": 8,
     "min_word_height": 6,
@@ -46,8 +46,8 @@ if __name__ == "__main__":
         box_predictor = lambda x: torch.exp(net(torch.tensor(x,dtype=torch.float,device=p.device))[:,1]).detach().cpu().numpy()
     except FileNotFoundError:
         box_predictor = lambda x: np.random.rand(x.shape[0])
-    thresholds = eval(p.thresholds)
-    rlsa_distances = eval(p.rlsa_distances)
+    #thresholds = eval(p.thresholds)
+    #rlsa_distances = eval(p.rlsa_distances)
     for img_name in tqdm.tqdm(p.prob_images):
         id = img_name[img_name.rfind("/"):].split(".")[0]
         if p.target_prefix=="":
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         target_path=f"{target_root}/{id}{p.target_postfix}"
         prob_img = PIL.Image.open(img_name)
         prob_img = np.array(prob_img)
-        proposals = cbsegm.word_proposals(prob_img, box_predictor, thresholds=thresholds, rlsa_gaps=rlsa_distances,
+        proposals = cbsegm.word_proposals(prob_img, box_predictor, thresholds=p.thresholds, rlsa_gaps=p.rlsa_distances,
                                           iou_threshold=p.nms_threshold,
                                           min_word_legth=p.min_word_length,
                                           min_word_height=p.min_word_height,

@@ -85,7 +85,7 @@ p = {
     "archive_postfix": ".pickle",
     "archive_location": "./data/compiled_fake_db/",
     "parallel_proposals": 4,
-    "proposal_params": " -rlsa_distances '[0,2,4,6,12,18,24]' -thresholds '[32, 64, 128, 224]' -nms_threshold .6 -min_word_length 8 -min_word_height 6 -max_word_length .2 -max_word_height .1 ",
+    "proposal_params": " -rlsa_distances [0,2,4,6,12,18,24] -thresholds [32, 64, 128, 224] -nms_threshold .6 -min_word_length 8 -min_word_height 6 -max_word_length .2 -max_word_height .1 ",
     "pythonpath": "./:./thirdparty/iunets/",
 }
 
