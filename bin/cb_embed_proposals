@@ -91,7 +91,8 @@ if __name__ == "__main__":
         fname_data_description = f".P{len(image_files):06}_B{all_boxes.shape[0]:08}_SZ{all_embeddings.shape[1]:06}"
     else:
         fname_data_description = f".SZ{all_embeddings.shape[1]:06}"
-    output_filename = f"{p.output_basename}{p.output_postfix}"
+    chronicle_name = p.docname.replace("/", "_")
+    output_filename = f"{p.output_basename}{chronicle_name}{p.output_postfix}"
     with open(output_filename, "wb") as fd:
         pickle.dump(outputs, fd)
     print(f"Computed {all_boxes.shape[0]} from {len(image_files)} pages in {(time.time() - t):7.3} sec.")
