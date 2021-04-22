@@ -46,9 +46,9 @@ def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxne
     boxnet_path = _absolute(boxnet_path)
     phocnet_path = _absolute(phocnet_path)
     input_images = glob.glob(f"{db_root}/{chronicle_name}/*.jp2")
-    docname = os.path.split(chronicle_name)[1]
-    if docname == '':
-        docname = os.path.split(chronicle_name[:-1])
+    #docname = os.path.split(chronicle_name)[1]
+    #if docname == '':
+    #    docname = os.path.split(chronicle_name[:-1])
 
     prob_images, bin_dependencies, bin_cmd = binarize_cmd(cb_root=cb_root, in_img_list=input_images, binnet_path=binnet_path, out_postfix=binarization_postfix, max_device_mp=max_device_mp)
     makefile_str = f"\n{' '.join(prob_images)}:{bin_dependencies}\n\t{bin_cmd}"
@@ -84,7 +84,7 @@ p = {
     "proposals_postfix": ".words.pickle",
     "archive_postfix": ".pickle",
     "archive_location": "./data/compiled_fake_db/",
-    "parallel_proposals": 4,
+    "parallel_proposals": 12,
     "proposal_params": " -rlsa_distances [0,2,4,6,12,18,24] -thresholds [32,64,128,224] -nms_threshold .6 -min_word_length 8 -min_word_height 6 -max_word_length .2 -max_word_height .1 ",
     "pythonpath": "./:./thirdparty/iunets/",
 }
