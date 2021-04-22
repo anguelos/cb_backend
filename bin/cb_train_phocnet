@@ -122,15 +122,16 @@ if __name__ == "__main__":
     else:
         raise ValueError
 
+    train_state = {"accuracies": [], "losses": [], "batch_sizes": [], "pseudo_batch_sizes": [], "start_times": [], "end_times": [], "parameters": p}
     if p.arch == "phocnet":
         net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
     else:
         raise NotImplementedError
+
     try:
         net, train_state = cbphocnet.PHOCNet.resume(p.resume_path, net=net)
-    except:
-        train_state = {"accuracies":[],"losses":[],"batch_sizes":[],"pseudo_batch_sizes":[],"start_times":[],
-                       "end_times":[],"parameters":p}
+    except FileNotFoundError:
+        pass
 
     if p.optimizer == 'sgd':
         optimizer = torch.optim.SGD(net.parameters(), lr=p.lr, momentum=p.momentum, weight_decay=p.weight_decay)
