@@ -84,17 +84,17 @@ class CBDataset(object):
             #         img_paths = sorted(set(img_paths).intersection(set(glob.glob(test_glob))))
             #     id2gt = {f.split("/")[-1].split(".")[0]: f for f in gt_paths}
             #     id2img = {f.split("/")[-1].split(".")[0]: f for f in img_paths}
-            else: # no glob defining test set
-                keep_page_ids = sorted([f.split("/")[-1].split(".")[0] for f in gt_paths])
-                Random(0).shuffle(keep_page_ids)
-                if train:
-                    keep_page_ids=keep_page_ids[:len(keep_page_ids)//5]
-                else:
-                    keep_page_ids = keep_page_ids[len(keep_page_ids) // 5:]
-                id2gt = {f.split("/")[-1].split(".")[0]: f for f in gt_paths}
-                id2img = {f.split("/")[-1].split(".")[0]: f for f in img_paths}
-                id2gt = {k:id2gt[k] for k in keep_page_ids}
-                id2img = {k:id2img[k] for k in keep_page_ids}
+            # else: # no glob defining test set
+            #     keep_page_ids = sorted([f.split("/")[-1].split(".")[0] for f in gt_paths])
+            #     Random(0).shuffle(keep_page_ids)
+            #     if train:
+            #         keep_page_ids=keep_page_ids[:len(keep_page_ids)//5]
+            #     else:
+            #         keep_page_ids = keep_page_ids[len(keep_page_ids) // 5:]
+            #     id2gt = {f.split("/")[-1].split(".")[0]: f for f in gt_paths}
+            #     id2img = {f.split("/")[-1].split(".")[0]: f for f in img_paths}
+            #     id2gt = {k:id2gt[k] for k in keep_page_ids}
+            #     id2img = {k:id2img[k] for k in keep_page_ids}
 
             self.data = CBDataset.compile(id2gt=id2gt, id2img=id2img, fixed_size=fixed_size,pyramids=phoc_pyramids,
                                           unigrams=unigrams, input_channels=input_channels,keep_singletons=keep_singletons)
