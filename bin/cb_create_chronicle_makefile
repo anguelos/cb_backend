@@ -34,7 +34,7 @@ def embed_words_cmd(cb_root, db_root, docname, phocnet_path, image_files, words_
     targets = [f"{output_basename}/{docname}{output_postfix}"]
     dependencies = ' '.join(image_files + words_files + [phocnet_path])
     dependencies = f"{dependencies} {other_dependencies}"
-    cmd = f"{cb_root}/bin/cb_embed_proposals -phocnet {phocnet_path} -docname {docname} -dbroot {db_root} -image_files {' '.join(image_files)} -words_files {' '.join(words_files)} -output_basename {output_basename} -device {device}" + "\n\n"
+    cmd = f"{cb_root}/bin/cb_embed_proposals -phocnet {phocnet_path} -docname {docname} -db_root {db_root} -image_files {' '.join(image_files)} -words_files {' '.join(words_files)} -output_basename {output_basename} -device {device}" + "\n\n"
     return targets, dependencies, cmd
 
 
