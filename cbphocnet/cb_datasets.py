@@ -91,8 +91,8 @@ class CBDataset(object):
             #         keep_page_ids=keep_page_ids[:len(keep_page_ids)//5]
             #     else:
             #         keep_page_ids = keep_page_ids[len(keep_page_ids) // 5:]
-            #     id2gt = {f.split("/")[-1].split(".")[0]: f for f in gt_paths}
-            #     id2img = {f.split("/")[-1].split(".")[0]: f for f in img_paths}
+            id2gt = {f.split("/")[-1].split(".")[0]: f for f in gt_paths}
+            id2img = {f.split("/")[-1].split(".")[0]: f for f in img_paths}
             #     id2gt = {k:id2gt[k] for k in keep_page_ids}
             #     id2img = {k:id2img[k] for k in keep_page_ids}
 
