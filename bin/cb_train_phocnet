@@ -45,7 +45,7 @@ def evaluate_epoch(net, dataset, device, batch_size=1):
     for n, (_, phoc) in enumerate(dataset):
         sample_classes[n] = (abs(hash(str(phoc))) % 1024 ** 3)
     class_map = {cl: n for n, cl in enumerate(np.sort(np.unique(sample_classes)).tolist())}
-    sample_classes = np.array([class_map[n] for n in sample_classes.tolist()])
+    sample_classes = np.array([class_map[n] for n in sample_classes.tolist()], dtype=np.int64)
     class_frequencies = np.bincount(sample_classes)
     non_unique_idx = class_frequencies[sample_classes] > 1
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
