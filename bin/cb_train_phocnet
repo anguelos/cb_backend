@@ -54,7 +54,7 @@ def evaluate_epoch(net, dataset, device, batch_size=1):
     net = net.to(device)
     net.train(False)
     with torch.no_grad():
-        for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), desc="Validating",leave=False):
+        for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), desc="Validating", leave=False):
             targets.append(embedding.numpy())
             word_image = word_image.to(device)
             outputs.append(torch.sigmoid(net(word_image)).cpu().numpy())
