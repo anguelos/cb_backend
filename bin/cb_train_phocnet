@@ -70,7 +70,7 @@ def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_b
     net.train(True)
     dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=batch_size)
     losses = []
-    data_iter=tqdm.tqdm(enumerate(dataloader), leave=False,desc="Training")
+    data_iter=tqdm.tqdm(enumerate(dataloader), leave=False,desc="Training",length=len(dataset)//batch_size)
     for n, (word_image, embedding) in data_iter:
         word_image, embedding = word_image.to(device), embedding.to(device)
         if n % pseudo_batch_size == 0:
