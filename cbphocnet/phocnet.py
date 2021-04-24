@@ -195,20 +195,87 @@ class PHOCNet(Embedder):
             nn.init.constant(m.bias.data, 0)
 
 
+class ResnetBottleneck(torch.nn.Module):
+    def __init__(self, channels_in, channels_out, bottleneck_sz=0, add_batch_norm=False):
+        super().__init__()
+        if bottleneck_sz == 0:
+            bottleneck = channels_out // 4
+        if add_batch_norm:
+            self.bottleneck = torch.nn.Sequential(
+                torch.nn.Conv2d(channels_in, bottleneck_sz, 1),
+                torch.nn.BatchNorm2d(bottleneck_sz),
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3),
+                torch.nn.BatchNorm2d(bottleneck_sz),
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(bottleneck, channels_out, 1),
+                torch.nn.BatchNorm2d(channels_out))
+        else:
+            self.bottleneck = torch.nn.Sequential(
+                torch.nn.Conv2d(channels_in, bottleneck_sz, 1),
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3),
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(bottleneck, channels_out, 1))
+
+    def forward(self, x):
+        return F.relu(x + self.bottleneck(x))
+
+
 class PHOCResNet(Embedder):
-    @staticmethod
-    def _residual_bottleneck(channels_in, channels_out, bottleneck):
-        nn.Sequential(
-            torch.nn.Conv2d(channels_in, bottleneck, 1),
-            torch.nn.ReLU(),
-            torch.nn.Conv2d(bottleneck, bottleneck, 3),
-            torch.nn.ReLU(),
-            torch.nn.Conv2d(bottleneck, channels_out, 1),
-        )
+    def retrieval_distance_metric(self):
+        return "cosine"
+
+    def arch_hash(self):
+        return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
 
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
         super().__init__(unigrams=unigrams, unigram_pyramids=unigram_pyramids, fixed_size=fixed_size, input_channels=input_channels,gpp_type=gpp_type,pooling_levels=pooling_levels, pool_type='max_pool')
         n_out = len(unigrams)*sum(unigram_pyramids)
-        self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=256, kernel_size=7, stride=1, padding=1)
-        self.conv1_1 = nn.Conv2d(in_channels=input_channels, out_channels=256, kernel_size=7, stride=1, padding=1)
 
+        self.intro_layers = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=input_channels, out_channels=256, kernel_size=7, stride=1, padding=3),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(3)
+        )
+        self.layers_256 = torch.nn.Sequential(
+            ResnetBottleneck(256, 256),
+            ResnetBottleneck(256, 256),
+            ResnetBottleneck(256, 512),
+        )
+        self.layers_512 = torch.nn.Sequential(
+            ResnetBottleneck(512, 512),
+            ResnetBottleneck(512, 512),
+            ResnetBottleneck(512, 512),
+            ResnetBottleneck(512, 1024),
+        )
+        self.layers_1024 = torch.nn.Sequential(
+            ResnetBottleneck(1024, 1024),
+            ResnetBottleneck(1024, 1024),
+            ResnetBottleneck(1024, 1024),
+            ResnetBottleneck(1024, 1024),
+            ResnetBottleneck(1024, 1024),
+            ResnetBottleneck(1024, 1024),
+        )
+        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type)
+        pooling_output_size = self.pooling_layer_fn.pooling_output_size
+        self.mlp = torch.nn.Sequential(
+            torch.nn.Linear(pooling_output_size, 4096),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(p=.5),
+            torch.nn.Linear(4096, 4096),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(p=.5),
+            torch.nn.Linear(4096, n_out))
+        self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "fixed_size": fixed_size,
+                       "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
+                       "pool_type": pool_type}
+
+    def forward(self, x):
+        x = self.intro_layers(x)
+        x = self.layers_256(x)
+        x = self.layers_512(x)
+        x = self.layers_1024(x)
+        x = self.pooling_layer_fn(x)
+        x = self.mlp(x)
+        return x

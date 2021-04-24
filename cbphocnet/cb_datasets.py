@@ -2,7 +2,6 @@ from PIL import Image
 import numpy as np
 import torch
 import json
-import torchvision
 import unidecode
 import string
 import glob
@@ -13,6 +12,10 @@ import tqdm
 
 from .phoc import build_phoc_descriptor
 
+
+class CBDatasetFiles(object):
+    def __init__(self, image_files, gt_files, fixed_size=(0, 0)):
+        pass
 
 class CBDataset(object):
     "wget http://rr.visioner.ca/assets/cbws/data.tar.gz"
