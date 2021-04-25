@@ -137,7 +137,7 @@ class PHOCNet(Embedder):
         self.conv4_2 = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
         self.conv4_3 = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1)
         # create the spatial pooling layer
-        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type)
+        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type, input_channels=512)
         pooling_output_size = self.pooling_layer_fn.pooling_output_size
         self.fc5 = nn.Linear(pooling_output_size, 4096)
         self.fc6 = nn.Linear(4096, 4096)
@@ -154,9 +154,9 @@ class PHOCNet(Embedder):
 
     def forward(self, x):
         if x.size(2) < 8:
-            x = F.pad(x, (0,0, 4, 4))
+            x = F.pad(x, (0, 0, 4, 4))
         if x.size(3) < 8:
-            x = F.pad(x, (4,4, 0, 0))
+            x = F.pad(x, (4, 4, 0, 0))
         y = F.relu(self.conv1_1(x))
         y = F.relu(self.conv1_2(y))
         y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
@@ -268,7 +268,7 @@ class PHOCResNet(Embedder):
             ResnetBottleneck(1024, 1024),
             ResnetBottleneck(1024, 1024),
         )
-        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type)
+        self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type, input_channels=1024)
         pooling_output_size = self.pooling_layer_fn.pooling_output_size
         self.mlp = torch.nn.Sequential(
             torch.nn.ReLU(),
@@ -292,6 +292,5 @@ class PHOCResNet(Embedder):
         print("pooling_output_size:", self.pooling_layer_fn.pooling_output_size)
         x = self.pooling_layer_fn.forward(x)
         print("x2:", x.size())
-
         x = self.mlp(x)
         return x
