@@ -205,7 +205,7 @@ class ResnetBottleneck(torch.nn.Module):
                 torch.nn.Conv2d(channels_in, bottleneck_sz, 1),
                 torch.nn.BatchNorm2d(bottleneck_sz),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3),
+                torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3, padding=1),
                 torch.nn.BatchNorm2d(bottleneck_sz),
                 torch.nn.ReLU(),
                 torch.nn.Conv2d(bottleneck_sz, channels_out, 1),
@@ -214,7 +214,7 @@ class ResnetBottleneck(torch.nn.Module):
             self.bottleneck = torch.nn.Sequential(
                 torch.nn.Conv2d(channels_in, bottleneck_sz, 1),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3),
+                torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3, padding=1),
                 torch.nn.ReLU(),
                 torch.nn.Conv2d(bottleneck_sz, channels_out, 1))
 
