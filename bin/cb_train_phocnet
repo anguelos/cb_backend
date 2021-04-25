@@ -127,7 +127,7 @@ if __name__ == "__main__":
     train_state.update({"accuracies": [], "losses": [], "batch_sizes": [], "pseudo_batch_sizes": [], "start_times": [], "end_times": [], "parameters": p})
     if p.arch == "phocnet":
         net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
-    if p.arch == "phocresnet":
+    elif p.arch == "phocresnet":
         net = cbphocnet.PHOCResNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
     else:
         raise NotImplementedError
