@@ -284,6 +284,10 @@ class PHOCResNet(Embedder):
                        "pool_type": pool_type}
 
     def forward(self, x):
+        if x.size(2) < 8:
+            x = F.pad(x, (0, 0, 4, 4))
+        if x.size(3) < 8:
+            x = F.pad(x, (4, 4, 0, 0))
         x = self.intro_layers(x)
         x = self.layers_256(x)
         x = self.layers_512(x)
