@@ -199,7 +199,7 @@ class ResnetBottleneck(torch.nn.Module):
     def __init__(self, channels_in, channels_out, bottleneck_sz=0, add_batch_norm=False):
         super().__init__()
         if bottleneck_sz == 0:
-            bottleneck = channels_out // 4
+            bottleneck_sz = channels_out // 4
         if add_batch_norm:
             self.bottleneck = torch.nn.Sequential(
                 torch.nn.Conv2d(channels_in, bottleneck_sz, 1),
@@ -208,7 +208,7 @@ class ResnetBottleneck(torch.nn.Module):
                 torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3),
                 torch.nn.BatchNorm2d(bottleneck_sz),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(bottleneck, channels_out, 1),
+                torch.nn.Conv2d(bottleneck_sz, channels_out, 1),
                 torch.nn.BatchNorm2d(channels_out))
         else:
             self.bottleneck = torch.nn.Sequential(
@@ -216,7 +216,7 @@ class ResnetBottleneck(torch.nn.Module):
                 torch.nn.ReLU(),
                 torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(bottleneck, channels_out, 1))
+                torch.nn.Conv2d(bottleneck_sz, channels_out, 1))
 
     def forward(self, x):
         return F.relu(x + self.bottleneck(x))
