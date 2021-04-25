@@ -285,10 +285,10 @@ class PHOCResNet(Embedder):
         x = self.layers_256(x)
         x = self.layers_512(x)
         x = self.layers_1024(x)
-        print("x1:".size())
+        print("x1:",x.size())
         print("pooling_output_size:", self.pooling_layer_fn.pooling_output_size)
         x = self.pooling_layer_fn.forward(x)
-        print("x2:".size())
+        print("x2:", x.size())
 
         x = self.mlp(x)
         return x
