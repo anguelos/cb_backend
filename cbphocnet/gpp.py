@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class GPP(nn.Module):
 
-    def __init__(self, gpp_type='tpp', levels=3, pool_type='max_pool'):
+    def __init__(self, gpp_type='tpp', levels=3, pool_type='max_pool', input_channels=512):
         super(GPP, self).__init__()
 
         if gpp_type not in ['spp', 'tpp', 'gpp']:
@@ -15,11 +15,11 @@ class GPP(nn.Module):
             raise ValueError('Unknown pool_type. Must be either \'max_pool\', \'avg_pool\'')
 
         if gpp_type == 'spp':
-            self.pooling_output_size = sum([4 ** level for level in range(levels)]) * 512
+            self.pooling_output_size = sum([4 ** level for level in range(levels)]) * input_channels
         elif gpp_type == 'tpp':
-            self.pooling_output_size = (2 ** levels - 1) * 512
+            self.pooling_output_size = (2 ** levels - 1) * input_channels
         if gpp_type == 'gpp':
-            self.pooling_output_size = sum([h * w for h in levels[0] for w in levels[1]]) * 512
+            self.pooling_output_size = sum([h * w for h in levels[0] for w in levels[1]]) * input_channels
 
         self.gpp_type = gpp_type
         self.levels = levels
