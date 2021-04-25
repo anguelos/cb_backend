@@ -208,7 +208,7 @@ class ResnetBottleneck(torch.nn.Module):
                 torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3, padding=1),
                 torch.nn.BatchNorm2d(bottleneck_sz),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(bottleneck_sz, channels_out, 1),
+                torch.nn.Conv2d(bottleneck_sz, channels_in, 1),
                 torch.nn.BatchNorm2d(channels_out))
         else:
             self.bottleneck = torch.nn.Sequential(
@@ -216,10 +216,18 @@ class ResnetBottleneck(torch.nn.Module):
                 torch.nn.ReLU(),
                 torch.nn.Conv2d(bottleneck_sz, bottleneck_sz, 3, padding=1),
                 torch.nn.ReLU(),
-                torch.nn.Conv2d(bottleneck_sz, channels_out, 1))
+                torch.nn.Conv2d(bottleneck_sz, channels_in, 1))
+        if channels_out != channels_in:
+            self.adapt = torch.nn.Conv2d(in_channels=channels_in, out_channels=channels_out, kernel_size=1)
+        else:
+            self.adapt = None
 
     def forward(self, x):
-        return F.relu(x + self.bottleneck(x))
+        x = F.relu(x + self.bottleneck(x))
+        if self.adapt is None:
+            return x
+        else:
+            return self.adapt(x)
 
 
 class PHOCResNet(Embedder):
