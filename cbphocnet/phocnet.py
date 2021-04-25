@@ -268,6 +268,7 @@ class PHOCResNet(Embedder):
         self.pooling_layer_fn = GPP(gpp_type=gpp_type, levels=pooling_levels, pool_type=pool_type)
         pooling_output_size = self.pooling_layer_fn.pooling_output_size
         self.mlp = torch.nn.Sequential(
+            torch.nn.ReLU(),
             torch.nn.Linear(pooling_output_size, 4096),
             torch.nn.ReLU(),
             torch.nn.Dropout(p=.5),
@@ -284,6 +285,6 @@ class PHOCResNet(Embedder):
         x = self.layers_256(x)
         x = self.layers_512(x)
         x = self.layers_1024(x)
-        x = self.pooling_layer_fn(x)
+        x = self.pooling_layer_fn.forward(x)
         x = self.mlp(x)
         return x
