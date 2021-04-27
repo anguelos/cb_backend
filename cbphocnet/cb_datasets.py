@@ -76,7 +76,6 @@ class CBDataset(object):
     def __init__(self, img_paths=[], gt_paths=[], img_glob="", gt_glob="", cache_fname="/tmp/cb_ds_P{}_T{}_C{}_{}x{}.pt", net=None, train=True, input_channels=3, phoc_pyramids=[1,2,3,4,5,7,11], fixed_size=None,
                  unigrams=string.digits+string.ascii_lowercase, max_items=-1, keep_singletons=True, pad_mode="padcropscale"):
         assert pad_mode in ["padcropscale", "scale"]
-        self.scaled_resize=scaled_resize
         if net is not None:
             phoc_pyramids = net.params["unigram_pyramids"]
             unigrams = net.params["unigrams"]
