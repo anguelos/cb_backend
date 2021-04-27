@@ -154,7 +154,7 @@ if __name__ == "__main__":
     testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, train=False, net=net, keep_singletons=True, max_items=p.test_set_max_items, pad_mode=p.pad_mode)
     trange = tqdm.trange(p.epochs)
     for epoch in trange:
-        if len(train_state['accuracies'])==0 or len(train_state['mAP'])==0 or :
+        if len(train_state['accuracies'])==0 or len(train_state['mAP'])==0:
             description = ""
         else:
             description = f" Acc.:{train_state['accuracies'][-1]*100:.5} mAP:{train_state['mAP'][-1]*100:.5}   Loss:{train_state['losses'][-1]:.7}"
