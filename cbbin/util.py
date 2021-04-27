@@ -1,7 +1,10 @@
 import numpy as np
 import torch
-import fastai
-import fastai.vision
+try:
+    import fastai
+    import fastai.vision
+except ImportError:
+    print("could not load fastai: dynamic unets not available")
 from .unet import UNet
 from .unet2 import R2AttU_Net, AttU_Net, R2U_Net, U_Net
 import iunets
