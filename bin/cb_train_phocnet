@@ -65,8 +65,10 @@ def evaluate_epoch(net, dataset, device, batch_size=1):
     correct = sample_classes[idx] == sample_classes.reshape([-1, 1])
     correct = correct[:, 1:]
     correct = correct[non_unique_idx, :]
+    precisions_at_valid = (correct.cumsum(axis=1)/np.ones_like(correct).cumsum(axis=1)) * correct
+    average_precisions = precisions_at_valid.sum(axis=1)/correct.sum(axis=1)
     accuracy = correct[:, 0].mean()
-    return accuracy
+    return accuracy, average_precisions.mean()
 
 def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_batch_size):
     net=net.to(device)
@@ -94,9 +96,10 @@ def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_b
 def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, params):
     start_time = time.time()
     if epoch % params.validate_freq == 0:
-        accuracy = evaluate_epoch(net, testset, params.device)
+        accuracy, mAP = evaluate_epoch(net, testset, params.device)
     else:
         accuracy = train_state["accuracies"][-1] if train_state["accuracies"] else 0
+        mAP = train_state["mAP"][-1] if train_state["mAP"] else 0
     loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,batch_size=params.batch_size,pseudo_batch_size=params.pseudo_batch_size)
     train_state["accuracies"].append(accuracy)
     train_state["losses"].append(loss)
@@ -151,10 +154,10 @@ if __name__ == "__main__":
     testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, train=False, net=net, keep_singletons=True, max_items=p.test_set_max_items, pad_mode=p.pad_mode)
     trange = tqdm.trange(p.epochs)
     for epoch in trange:
-        if len(train_state['accuracies'])==0:
+        if len(train_state['accuracies'])==0 or len(train_state['mAP'])==0 or :
             description = ""
         else:
-            description = f" Acc.:{train_state['accuracies'][-1]*100:.5}   Loss:{train_state['losses'][-1]:.7}"
+            description = f" Acc.:{train_state['accuracies'][-1]*100:.5} mAP:{train_state['mAP'][-1]*100:.5}   Loss:{train_state['losses'][-1]:.7}"
         trange.set_description(description, refresh=True)
         train_state = run_epoch(epoch=epoch, net=net, trainset=trainset, testset=testset, optimizer=optimizer,
                                 criterium=criterium, train_state=train_state, params=p)
