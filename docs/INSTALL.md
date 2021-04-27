@@ -1,6 +1,12 @@
 ### Install packages in ubuntu for deployment and remote development
 ```bash
-sudo apt-get install parallel byobu mc lynx python3-pip 
+sudo apt-get install parallel byobu mc lynx python3-pip pssh
+```
+
+### Install packages in ubuntu for deployment and remote development
+```bash
+pip3 install --upgrade pip # opencv-python requires this
+pip3 install -r requirements.txt 
 ```
 
 ### If you have no root:

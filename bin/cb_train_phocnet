@@ -33,6 +33,7 @@ p = {
     "test_set_max_items": 3000,
     "validate_freq": 1,
     "save_freq": 1,
+    "pad_mode": "padcropscale"
 }
 
 
@@ -146,8 +147,8 @@ if __name__ == "__main__":
         raise ValueError
     #trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
     #testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net, keep_singletons=False, max_items=p.test_set_max_items)
-    trainset = cbphocnet.CBDataset(img_paths=p.train_images, gt_paths=p.train_gts, train=True, net=net)
-    testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, train=False, net=net, keep_singletons=True, max_items=p.test_set_max_items)
+    trainset = cbphocnet.CBDataset(img_paths=p.train_images, gt_paths=p.train_gts, train=True, net=net, pad_mode=p.pad_mode)
+    testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, train=False, net=net, keep_singletons=True, max_items=p.test_set_max_items, pad_mode=p.pad_mode)
     trange = tqdm.trange(p.epochs)
     for epoch in trange:
         train_state = run_epoch(epoch=epoch, net=net, trainset=trainset, testset=testset, optimizer=optimizer, criterium=criterium, train_state=train_state, params=p)

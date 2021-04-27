@@ -73,6 +73,7 @@ def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxne
 
 p = {
     "chronicle_paths": set(glob.glob("./data/fake_db/*/*/*")),
+    "make_filename": "Makefile",
     "device": "cuda",
     "cb_root": "./",
     "db_root": "./data/fake_db/",
@@ -96,7 +97,7 @@ if __name__ == "__main__":
         chronicle_path = _absolute(chronicle_path)
         p["db_root"] = _absolute(p["db_root"])
         p["archive_location"] = _absolute(p["archive_location"])
-        makefile_path = f"{chronicle_path}/Makefile"
+        makefile_path = f"{chronicle_path}/{p.make_filename}"
         kwargs = {}
         kwargs.update(p)
         del kwargs["chronicle_paths"]

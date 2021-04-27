@@ -5,5 +5,5 @@ PYTHONPATH="./" bin/cb_create_chronicle_makefile -db_root /data/storage/ -archiv
 
 ### Make all documents
 ```bash
-find /data/storage/db3/db_root/   -name \*Makefile -exec  make -f {}   \;  
+find /data/storage/new_root/demo_db/   -name \*Makefile -exec  make -f {}   \;  
 ```
