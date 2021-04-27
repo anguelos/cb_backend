@@ -46,7 +46,7 @@ class CBDataset(object):
                         in_w, in_h = word.size
                         out_w, out_h = fixed_size
                         if in_w/out_w > 1 or in_h/out_w > 1:
-                            ratio = min(out_h/in_h, out_w/out_h)
+                            ratio = min(out_h/in_h, out_w/in_w)
                             word = word.resize((int(word.size[0]*ratio), int(word.size[1]*ratio)))
                         in_w, in_h = word.size
                         assert in_w <= out_w and in_h <= out_h
