@@ -12,14 +12,15 @@ import cbphocnet
 import time
 
 
-def searchword(query,db,embedding_net, ctx_docnames=[],max_occurence_per_document =-1,max_responces = 10000):
-    t=time.time()
+def searchword(query, db, embedding_net, ctx_docnames=[], max_occurence_per_document=-1, max_responces=10000):
+    t = time.time()
     embedding = embedding_net.embed_strings([query])
-    responces = db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-    return {"rectangles": responces, "search_time": (time.time()-t)}
+    responces = db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces,
+                          max_occurence_per_document=max_occurence_per_document)
+    return {"rectangles": responces, "search_time": (time.time() - t)}
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     params = {
         "server_thread_pool": 2,
         "port": 8080,
@@ -33,21 +34,22 @@ if __name__=="__main__":
     params, _ = fargv.fargv(params)
     t = time.time()
     embedding_net, _ = cbphocnet.resume_embedder(params.embeding_net)
-    print(f"{time.time()-t:10.5} Net Loaded")
+    print(f"{time.time() - t:10.5} Net Loaded")
     db = NumpyIndex.load_documents(params.indexed_documents, document_root=params.document_root, net=embedding_net)
-    print(f"{time.time()-t:10.5} Db Loaded")
+    print(f"{time.time() - t:10.5} Db Loaded")
     copieddb = db.embeddings.copy().astype(np.double)
-    print(f"{time.time()-t:10.5} Db copied")
-    fakedb = np.random.rand(2421659, 540);q=np.random.rand(1,540)
+    print(f"{time.time() - t:10.5} Db copied")
+    fakedb = np.random.rand(2421659, 540);
+    q = np.random.rand(1, 540)
     print(f"{time.time() - t:10.5} data initialised")
-    d=np.dot(fakedb,np.random.rand(540,1))
+    d = np.dot(fakedb, np.random.rand(540, 1))
     print(f"{time.time() - t:10.5} fake_db distance computed {fakedb.shape},{fakedb.dtype}")
-    d=np.dot(copieddb,np.random.rand(540,1).astype(np.double))
+    d = np.dot(copieddb, np.random.rand(540, 1).astype(np.double))
     print(f"{time.time() - t:10.5} copied_db distance computed {copieddb.shape}, {copieddb.dtype}")
-    d=np.dot(db.embeddings,np.random.rand(540,1))
+    d = np.dot(db.embeddings, np.random.rand(540, 1))
     print(f"{time.time() - t:10.5} real db distance computed {db.embeddings.shape} {db.embeddings.dtype}")
-    print("Embeddings:\n",db.embeddings.flags,"\n")
-    print("fakedb:\n",fakedb.flags,"\n")
+    print("Embeddings:\n", db.embeddings.flags, "\n")
+    print("fakedb:\n", fakedb.flags, "\n")
     db_root = params.document_root
-    searchword("q1",db,embedding_net)
+    searchword("q1", db, embedding_net)
     print(f"{time.time() - t:10.5} Q1 asked")

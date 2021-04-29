@@ -54,7 +54,7 @@ class CBDataset(object):
                         out_word = PIL.Image.new(mode=word.mode, size=fixed_size)
                         out_word.paste(word, (left, top))
                         word = out_word
-                    else:
+                    elif fixed_size is not None:
                         raise NotImplemented
                     word = torch.from_numpy(np.array(word, dtype=np.float) / 255.).float()
                     if len(word.size()) == 2:

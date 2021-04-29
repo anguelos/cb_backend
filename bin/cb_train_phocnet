@@ -38,7 +38,7 @@ p = {
 
 
 def evaluate_epoch(net, dataset, device, batch_size=1):
-    net=net.to(device)
+    net = net.to(device)
     net.train(False)
     sample_classes = np.empty(len(dataset), dtype=np.int)
     for n, (_, phoc) in enumerate(dataset):
@@ -54,7 +54,8 @@ def evaluate_epoch(net, dataset, device, batch_size=1):
     net = net.to(device)
     net.train(False)
     with torch.no_grad():
-        for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), desc="Validating", leave=False, total=len(dataset)//batch_size):
+        for n, (word_image, embedding) in tqdm.tqdm(enumerate(dataloader), desc="Validating", leave=False,
+                                                    total=len(dataset) // batch_size):
             targets.append(embedding.numpy())
             word_image = word_image.to(device)
             outputs.append(torch.sigmoid(net(word_image)).cpu().numpy())
@@ -65,17 +66,18 @@ def evaluate_epoch(net, dataset, device, batch_size=1):
     correct = sample_classes[idx] == sample_classes.reshape([-1, 1])
     correct = correct[:, 1:]
     correct = correct[non_unique_idx, :]
-    precisions_at_valid = (correct.cumsum(axis=1)/np.ones_like(correct).cumsum(axis=1)) * correct
-    average_precisions = precisions_at_valid.sum(axis=1)/correct.sum(axis=1)
+    precisions_at_valid = (correct.cumsum(axis=1) / np.ones_like(correct).cumsum(axis=1)) * correct
+    average_precisions = precisions_at_valid.sum(axis=1) / correct.sum(axis=1)
     accuracy = correct[:, 0].mean()
     return accuracy, average_precisions.mean()
 
+
 def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_batch_size):
-    net=net.to(device)
+    net = net.to(device)
     net.train(True)
     dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=batch_size)
     losses = []
-    data_iter=tqdm.tqdm(enumerate(dataloader), leave=False, desc="Training", total=len(dataset)//batch_size)
+    data_iter = tqdm.tqdm(enumerate(dataloader), leave=False, desc="Training", total=len(dataset) // batch_size)
     for n, (word_image, embedding) in data_iter:
         word_image, embedding = word_image.to(device), embedding.to(device)
         if n % pseudo_batch_size == 0:
@@ -83,15 +85,16 @@ def train_epoch(net, dataset, optimizer, criterium, device, batch_size, pseudo_b
         output = net(word_image)
         loss = criterium(output, embedding).sum()
         loss.backward()
-        if n % pseudo_batch_size == pseudo_batch_size-1:
+        if n % pseudo_batch_size == pseudo_batch_size - 1:
             optimizer.step()
         losses.append(loss.detach().cpu().item())
         if n % 100 == 0:
-            l=(sum(losses) / (1 + len(losses)))
+            l = (sum(losses) / (1 + len(losses)))
             description = f"Training [Loss:{l:.8}]"
             data_iter.set_description(description, refresh=True)
-    optimizer.step() # updating the last iterations
-    return sum(losses)/len(losses)
+    optimizer.step()  # updating the last iterations
+    return sum(losses) / len(losses)
+
 
 def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, params):
     start_time = time.time()
@@ -100,7 +103,8 @@ def run_epoch(epoch, net, trainset, testset, optimizer, criterium, train_state, 
     else:
         accuracy = train_state["accuracies"][-1] if train_state["accuracies"] else 0
         mAP = train_state["mAP"][-1] if train_state["mAP"] else 0
-    loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,batch_size=params.batch_size,pseudo_batch_size=params.pseudo_batch_size)
+    loss = train_epoch(net=net, dataset=trainset, optimizer=optimizer, criterium=criterium, device=params.device,
+                       batch_size=params.batch_size, pseudo_batch_size=params.pseudo_batch_size)
     train_state["accuracies"].append(accuracy)
     train_state["mAP"].append(mAP)
     train_state["losses"].append(loss)
@@ -129,11 +133,14 @@ if __name__ == "__main__":
         raise ValueError
 
     train_state = defaultdict(lambda: [])
-    train_state.update({"accuracies": [], "losses": [], "batch_sizes": [], "pseudo_batch_sizes": [], "start_times": [], "end_times": [], "parameters": p})
+    train_state.update({"accuracies": [], "losses": [], "batch_sizes": [], "pseudo_batch_sizes": [], "start_times": [],
+                        "end_times": [], "parameters": p})
     if p.arch == "phocnet":
-        net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
+        net = cbphocnet.PHOCNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels,
+                                fixed_size=fixed_size)
     elif p.arch == "phocresnet":
-        net = cbphocnet.PHOCResNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels, input_channels=p.input_channels, fixed_size=fixed_size)
+        net = cbphocnet.PHOCResNet(unigrams=p.unigrams, unigram_pyramids=p.pyramid_levels,
+                                   input_channels=p.input_channels, fixed_size=fixed_size)
     else:
         raise NotImplementedError
 
@@ -149,16 +156,18 @@ if __name__ == "__main__":
         optimizer = torch.optim.Adam(net.parameters(), lr=p.lr, weight_decay=p.weight_decay)
     else:
         raise ValueError
-    #trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
-    #testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net, keep_singletons=False, max_items=p.test_set_max_items)
-    trainset = cbphocnet.CBDataset(img_paths=p.train_images, gt_paths=p.train_gts, train=True, net=net, pad_mode=p.pad_mode)
-    testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, train=False, net=net, keep_singletons=True, max_items=p.test_set_max_items, pad_mode=p.pad_mode)
+    # trainset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=True, net=net)
+    # testset = cbphocnet.CBDataset(img_glob=p.img_glob, gt_glob=p.gt_glob, test_glob=p.testset_glob, train=False, net=net, keep_singletons=False, max_items=p.test_set_max_items)
+    trainset = cbphocnet.CBDataset(img_paths=p.train_images, gt_paths=p.train_gts, train=True, net=net,
+                                   pad_mode=p.pad_mode)
+    testset = cbphocnet.CBDataset(img_paths=p.test_images, gt_paths=p.test_gts, train=False, net=net,
+                                  keep_singletons=True, max_items=p.test_set_max_items, pad_mode=p.pad_mode)
     trange = tqdm.trange(p.epochs)
     for epoch in trange:
-        if len(train_state['accuracies'])==0 or len(train_state['mAP'])==0:
+        if len(train_state['accuracies']) == 0 or len(train_state['mAP']) == 0:
             description = ""
         else:
-            description = f" Acc.:{train_state['accuracies'][-1]*100:.5} mAP:{train_state['mAP'][-1]*100:.5}   Loss:{train_state['losses'][-1]:.7}"
+            description = f" Acc.:{train_state['accuracies'][-1] * 100:.5} mAP:{train_state['mAP'][-1] * 100:.5}   Loss:{train_state['losses'][-1]:.7}"
         trange.set_description(description, refresh=True)
         train_state = run_epoch(epoch=epoch, net=net, trainset=trainset, testset=testset, optimizer=optimizer,
                                 criterium=criterium, train_state=train_state, params=p)
