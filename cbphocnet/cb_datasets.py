@@ -10,13 +10,31 @@ from random import Random
 import collections
 import os
 import tqdm
+from typing import Tuple
 
 from .phoc import build_phoc_descriptor
 
+def resize_word(word:Image, fixed_size:Tuple[int,int], pad_mode:str):
+    if fixed_size == (0, 0):
+        return word
+    if fixed_size is not None and pad_mode == "scale":
+        word = word.resize(fixed_size)
+    elif fixed_size is not None and pad_mode == "padcropscale":
+        in_w, in_h = word.size
+        out_w, out_h = fixed_size
+        if in_w / out_w > 1 or in_h / out_h > 1:
+            ratio = min(out_h / in_h, out_w / in_w)
+            word = word.resize((int(word.size[0] * ratio), int(word.size[1] * ratio)))
+        in_w, in_h = word.size
+        assert in_w <= out_w and in_h <= out_h
+        left, top = (out_w - in_w) // 2, (out_h - in_h) // 2
+        out_word = PIL.Image.new(mode=word.mode, size=fixed_size)
+        out_word.paste(word, (left, top))
+        word = out_word
+    else:
+        raise NotImplemented
+    return word
 
-class CBDatasetFiles(object):
-    def __init__(self, image_files, gt_files, fixed_size=(0, 0)):
-        pass
 
 class CBDataset(object):
     "wget http://rr.visioner.ca/assets/cbws/fake_db.tar.bz2"
@@ -40,22 +58,7 @@ class CBDataset(object):
                     caption = unidecode.unidecode(caption[2:].lower())
                     l, t, r, b = gt["rectangles_ltrb"][n]
                     word = page.crop((l, t, r, b))
-                    if fixed_size is not None and pad_mode=="scale":
-                        word = word.resize(fixed_size)
-                    elif fixed_size is not None and pad_mode=="padcropscale":
-                        in_w, in_h = word.size
-                        out_w, out_h = fixed_size
-                        if in_w/out_w > 1 or in_h/out_h > 1:
-                            ratio = min(out_h/in_h, out_w/in_w)
-                            word = word.resize((int(word.size[0]*ratio), int(word.size[1]*ratio)))
-                        in_w, in_h = word.size
-                        assert in_w <= out_w and in_h <= out_h
-                        left, top = (out_w-in_w)//2, (out_h - in_h) // 2
-                        out_word = PIL.Image.new(mode=word.mode, size=fixed_size)
-                        out_word.paste(word, (left, top))
-                        word = out_word
-                    elif fixed_size is not None:
-                        raise NotImplemented
+                    word = resize_word(word, fixed_size=fixed_size, pad_mode=pad_mode)
                     word = torch.from_numpy(np.array(word, dtype=np.float) / 255.).float()
                     if len(word.size()) == 2:
                         word = word.unsqueeze(dim=2)

@@ -66,7 +66,7 @@ def evaluate_epoch(net, dataset, device, batch_size=1):
     correct = sample_classes[idx] == sample_classes.reshape([-1, 1])
     correct = correct[:, 1:]
     correct = correct[non_unique_idx, :]
-    precisions_at_valid = (correct.cumsum(axis=1) / np.ones_like(correct).cumsum(axis=1)) * correct
+    precisions_at_valid = ((correct.cumsum(axis=1) / np.ones_like(correct).cumsum(axis=1))) * correct
     average_precisions = precisions_at_valid.sum(axis=1) / correct.sum(axis=1)
     accuracy = correct[:, 0].mean()
     return accuracy, average_precisions.mean()
