@@ -97,7 +97,7 @@ if __name__ == "__main__":
         chronicle_path = _absolute(chronicle_path)
         p["db_root"] = _absolute(p["db_root"])
         p["archive_location"] = _absolute(p["archive_location"])
-        makefile_path = f"{chronicle_path}/{p.make_filename}"
+        makefile_path = f"{chronicle_path}/{p['make_filename']}"
         kwargs = {}
         kwargs.update(p)
         del kwargs["chronicle_paths"]
