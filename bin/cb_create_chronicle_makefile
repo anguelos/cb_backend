@@ -100,6 +100,7 @@ if __name__ == "__main__":
         makefile_path = f"{chronicle_path}/{p['make_filename']}"
         kwargs = {}
         kwargs.update(p)
+        del kwargs["make_filename"]
         del kwargs["chronicle_paths"]
         kwargs["chronicle_name"] = cbdiadb.documentpath_to_documentid(documentpath=chronicle_path, document_root=p["db_root"])
         makefile_str = render_makefile(**kwargs)
