@@ -6,6 +6,7 @@ import pathlib
 import os
 import cbdiadb
 import glob
+import pathlib
 
 def _absolute(path):
     return str(pathlib.Path(path).resolve())
@@ -41,7 +42,7 @@ def embed_words_cmd(cb_root, db_root, docname, phocnet_path, image_files, words_
     return targets, dependencies, cmd
 
 
-def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxnet_path, phocnet_path, binarization_postfix, max_device_mp, proposals_postfix, proposal_params, parallel_proposals, archive_location, archive_postfix, pythonpath):
+def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxnet_path, phocnet_path, binarization_postfix, max_device_mp, proposals_postfix, proposal_params, parallel_proposals, archive_location, archive_postfix, pythonpath, aux_proposals_postfix):
     pythonpath = ":".join([_absolute(ppath) for ppath in pythonpath.split(":")])
     db_root = _absolute(db_root)
     cb_root = _absolute(cb_root)
@@ -59,16 +60,33 @@ def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxne
     document_archives, document_dependencies, document_cmd = embed_words_cmd(cb_root=cb_root, db_root=db_root, docname=chronicle_name, phocnet_path=phocnet_path, image_files=input_images, words_files=proposals, output_basename=archive_location, output_postfix=archive_postfix, device=device)
     makefile_str += f"\n{document_archives[0]}:{document_dependencies}\n\t{document_cmd}\n"
 
-    makefile_str = f"ALL: {document_archives[0]}\n" + makefile_str
+    if aux_proposals_postfix != "":
+        aux_proposals, proposal_dependencies, aux_proposals_cmd = propose_words_cmd(cb_root=cb_root,
+                                                                                    prob_img_list=prob_images,
+                                                                                    out_postfix=aux_proposals_postfix,
+                                                                                    box_model=boxnet_path,
+                                                                                    device=device,
+                                                                                    parallel=parallel_proposals,
+                                                                                    proposal_params=proposal_params)
+        makefile_str += f"\n{' '.join(aux_proposals)}:{proposal_dependencies}\n\t{aux_proposals_cmd}\n"
+        all_dependencies = ' '.join(aux_proposals + document_archives)
+    else:
+        all_dependencies = ' '.join(document_archives)
 
-    makefile_str = f".EXPORT_ALL_VARIABLES:\n\nPYTHONPATH = {pythonpath}\n\n" +makefile_str
+    makefile_str = f".EXPORT_ALL_VARIABLES:\n\nPYTHONPATH = {pythonpath}\n\n" + makefile_str
+
+    makefile_str = f"all: {all_dependencies}\n\n" + makefile_str
 
     makefile_str += f"clean_bin:\n\trm {' '.join(prob_images)}\n\n"
     makefile_str += f"clean_boxes:\n\trm {' '.join(proposals)}\n\n"
     makefile_str += f"clean_embeddings:\n\trm {document_archives[0]}\n\n"
-    makefile_str += f"clean: clean_bin clean_boxes clean_embeddings\n\techo 'Removing all'\n"
+    if aux_proposals_postfix == "":
+        makefile_str += f"clean: clean_bin clean_boxes clean_embeddings\n\techo 'Removing all'\n"
+    else:
+        makefile_str += f"clean_aux_boxes:\n\trm {' '.join(aux_proposals)}\n\n"
+        makefile_str += f"clean: clean_bin clean_boxes clean_embeddings clean_aux_boxes\n\techo 'Removing all'\n"
 
-    return makefile_str
+    return makefile_str, document_archives[0]
 
 
 p = {
@@ -83,8 +101,9 @@ p = {
     "binarization_postfix": ".bin.png",
     "max_device_mp": 20.,
     "proposals_postfix": ".words.pickle",
+    "aux_proposals_postfix": ("", "Set this to '.words.json' to add json proposals as well"),
     "archive_postfix": ".pickle",
-    "archive_location": "./data/compiled_fake_db/",
+    "archive_location": "./data/idx_fake_db/",
     "parallel_proposals": 12,
     "proposal_params": " -rlsa_distances [0,2,4,6,12,18,24] -thresholds [32,64,128,224] -nms_threshold .6 -min_word_length 8 -min_word_height 6 -max_word_length .2 -max_word_height .1 ",
     "pythonpath": "./:./thirdparty/iunets/",
@@ -93,6 +112,9 @@ p = {
 
 if __name__ == "__main__":
     p, _ = fargv.fargv(p, return_type="dict")
+    total_makefile_str = ""
+    pathlib.Path(p["archive_location"]).mkdir(parents=True, exist_ok=True)
+    all_indexes = []
     for chronicle_path in tqdm.tqdm(p["chronicle_paths"]):
         chronicle_path = _absolute(chronicle_path)
         p["db_root"] = _absolute(p["db_root"])
@@ -103,5 +125,10 @@ if __name__ == "__main__":
         del kwargs["make_filename"]
         del kwargs["chronicle_paths"]
         kwargs["chronicle_name"] = cbdiadb.documentpath_to_documentid(documentpath=chronicle_path, document_root=p["db_root"])
-        makefile_str = render_makefile(**kwargs)
-        open(makefile_path, "wt").write(makefile_str)
+        makefile_content, idx_file = render_makefile(**kwargs)
+        open(makefile_path, "wt").write(makefile_content)
+        total_makefile_str += f"\n{idx_file}: {p['phocnet_path']} {p['boxnet_path']} {p['binnet_path']}\n\tmake -f {makefile_path}\n\n"
+        all_indexes.append(idx_file)
+    total_makefile_str = "ALL: " + " ".join(all_indexes) + "\n\n" + total_makefile_str
+    total_makefile_str += f"\nclean:\n\trm {' '.join(all_indexes)}\n\n"
+    open(f"{p['archive_location']}/Makefile", "w").write(total_makefile_str)
