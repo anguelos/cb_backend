@@ -2,10 +2,46 @@
 
 ##### Set train and test sets:
 ```bash
-TRAIN_IMAGES=(./data/fake_db/chronicle/archive_name/blovice/*.jp2 ./data/fake_db/chronicle/archive_name/blovice_1/*.jp2 ./data/fake_db/chronicle/archive_name/cheb_gradl/*.jp2 ./data/fake_db/chronicle/archive_name/cheb_gradl_2/*.jp2 ./data/fake_db/chronicle/archive_name/cheb_vyber/*.jp2 ./data/fake_db/chronicle/archive_name/chudenice/*.jp2  ./data/fake_db/chronicle/archive_name/hroznetin/*.jp2 ./data/fake_db/chronicle/archive_name/k_vary/*.jp2 ./data/fake_db/chronicle/archive_name/svojsin/*.jp2 ./data/fake_db/chronicle/archive_name/treben/*.jp2)
-TEST_IMAGES=(./data/fake_db/chronicle/archive_name/chudenice_2/*.jp2)
-TRAIN_GTS=(./data/fake_db/chronicle/archive_name/blovice/*.gt.json ./data/fake_db/chronicle/archive_name/blovice_1/*.gt.json ./data/fake_db/chronicle/archive_name/cheb_gradl/*.gt.json ./data/fake_db/chronicle/archive_name/cheb_gradl_2/*.gt.json ./data/fake_db/chronicle/archive_name/cheb_vyber/*.gt.json ./data/fake_db/chronicle/archive_name/chudenice/*.gt.json  ./data/fake_db/chronicle/archive_name/hroznetin/*.gt.json ./data/fake_db/chronicle/archive_name/k_vary/*.gt.json ./data/fake_db/chronicle/archive_name/svojsin/*.gt.json ./data/fake_db/chronicle/archive_name/treben/*.gt.json)
-TEST_GTS=(./data/fake_db/chronicle/archive_name/chudenice_2/*.gt.json)
+DATA_ROOT=./data/fake_db/
+TRAIN_CHRONICLES=(blovice_1  blovice_2  cheb_gradl_1  cheb_gradl_2  cheb_vyber  
+                  chudenice_1  hroznetin  k_vary  svojsin  treben)
+TEST_CHRONICLES=(chudenice_2  plasy)
+
+TRAIN_GTS=()
+TRAIN_IMAGES=()
+for CHRONICLE in "${TRAIN_CHRONICLES[@]}"; do 
+  TRAIN_IMAGES+=($DATA_ROOT/$CHRONICLE/*/*/*/*jp2)
+  TRAIN_GTS+=($DATA_ROOT/$CHRONICLE/*/*/*/*.gt.json) 
+done  # loop over the array
+
+TEST_GTS=()
+TEST_IMAGES=()
+for CHRONICLE in "${TEST_CHRONICLES[@]}"; do 
+  TEST_IMAGES+=($DATA_ROOT/$CHRONICLE/*/*/*/*jp2)
+  TEST_GTS+=($DATA_ROOT/$CHRONICLE/*/*/*/*.gt.json) 
+done  # loop over the array
+# echo "${TRAIN_IMAGES[@]}" |wc -l
+
+if (( $(echo "${TRAIN_IMAGES[@]}" |wc -w) == 100 )); then
+    echo "Train 100 Images OK"
+else
+    echo "Train Images not OK"
+fi 
+if (( $(echo "${TEST_IMAGES[@]}" |wc -w) == 20 )); then
+    echo "Test 20 Images OK"
+else
+    echo "Test Images not OK"
+fi
+if (( $(echo "${TRAIN_GTS[@]}" |wc -w) == 100 )); then
+    echo "Train 100 json files OK"
+else
+    echo "Train json files not OK"
+fi 
+if (( $(echo "${TEST_GTS[@]}" |wc -w) == 20 )); then
+    echo "Test 20 json files OK"
+else
+    echo "Test json files not OK"
+fi
 
 ```
 

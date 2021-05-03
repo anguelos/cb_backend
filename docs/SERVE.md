@@ -1,0 +1,1 @@
+PYTHONPATH="./" ./bin/cb_service -indexed_documents  /data/storage/new_root/idx_demo_simple_resnet/soap-*pickle -embeding_net /data/storage/new_root/models/phocresnet_0x0.pt

@@ -46,6 +46,8 @@ mkdir -p ./data/compiled_fake_db/
 cd ./data/
 wget rr.visioner.ca/assets/cbws/fake_db.tar.bz2
 tar -xpvjf fake_db.tar.bz2
+mkdir -p fake_db_overlaid/chronicle
+cp -Rp ./fake_db/*/chronicle/* ./fake_db_overlaid/chronicle
 cd ../models
 wget rr.visioner.ca/assets/cbws/phocnet_0x0.pt
 wget rr.visioner.ca/assets/cbws/srunet.pt
