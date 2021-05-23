@@ -3,52 +3,106 @@ import requests
 import fargv
 from PIL import Image
 import glob
+import json
+import cbdiadb
+import cbphocnet
+import numpy as np
+import time
+from collections import defaultdict
+from cbsegm import get_iou
 
 p = {
     "port": 8080,
     "server": "127.0.0.1",
-    "queries": set([]),
-    "rectangles_per_document": -1,
-    "max_rectangles": 100,
-    "shown_word_count": 10,
-    "db_root": "./data/storage/",
-    "output": "/tmp/qbs.png",
-    "show": False,
-    "dump_json": False
+    "gt_json": set([]),
+    "words": set([]),
+    "db_root": "./data/fake_db_overlaid/",
+    "output": "/tmp/results",
+    "rectangles_per_document": 10000,
+    "max_rectangles": 100000,
+    "indexing_net": "./models/phocnet_0x0.pt",
+    "iou_threshold": .2
 }
 
 
-def image_result(results, item_count, document_root, pad=4):
-    cropped_images = []
-    for item in range(item_count):
-        image_glob = f"{document_root}/{results['rectangles'][item][0]}/*{results['rectangles'][item][1]:04}*jp2"
-        print("glob:", image_glob, end="")
-        img = Image.open(glob.glob(image_glob)[0])
-        print(results['rectangles'][item][2:6])
-        img = img.crop(results['rectangles'][item][2:6])
-        cropped_images.append(img)
-    res_width = max([img.size[0] for img in cropped_images]) + pad * 2
-    res_height = sum([img.size[0]+pad for img in cropped_images]) + pad
-    result = Image.new('RGB', (res_width, res_height))
-    top = pad
-    for img in cropped_images:
-        result.paste(im=img, box=(pad, top))
-        top += (img.size[1] + pad)
-    return result
+def load_gt(json_file_list):#, embedding_net:cbphocnet.PHOCNet):
+    per_page_rects = {}
+    per_page_captions = {}
+    all_captions = []
+    for file in json_file_list:
+        data = json.load(open(file, "r"))
+        page_id = cbdiadb.filepath_to_pageid(file, name_depth=3)
+        page_ltrb = []
+        page_captions = []
+        for n in range(len(data["rectangles_ltrb"])):
+            if data["captions"][n].startswith("W@"):
+                page_ltrb.append(data["rectangles_ltrb"][n])
+                page_captions.append(data["captions"][n][2:])
+                all_captions.append(data["captions"][n][2:].lower())
+                #, "captions": np.array(page_captions)}
+        per_page_captions[page_id] = np.array(page_captions)
+        per_page_rects[page_id] = np.array(page_ltrb)
+    vocabulary_freq = dict()
+    for caption in all_captions:
+        vocabulary_freq[caption] = vocabulary_freq.get(caption, 0) + 1
+    return per_page_rects, per_page_captions, sorted(set(all_captions)), vocabulary_freq
+
+
+def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, query_freq, iou_thr=.5):
+    answers = answers["rectangles"]
+    answers_per_page_rects = defaultdict(lambda:[])
+    answers_per_page_idx = defaultdict(lambda: [])
+    for idx, answer in enumerate(answers):
+        answers_per_page_rects[tuple(answer[:2])].append(answer[2:])
+        answers_per_page_idx[tuple(answer[:2])].append(idx)
+    #print(sorted(gt_per_page_rects.keys()))
+    #print(sorted(answers_per_page_idx.keys()))
+    assert set(answers_per_page_idx.keys()) >= set(gt_per_page_rects.keys())
+    correct = np.zeros(len(answers), dtype=np.bool)
+    iou_of_correct = np.zeros(len(answers), dtype=np.float)
+    for page_id in gt_per_page_rects.keys():
+        gt_rectangles = gt_per_page_rects[page_id]
+        iou = get_iou(np.array(answers_per_page_rects[page_id]), gt_rectangles)
+
+        # each GT object matched only once
+        #iou[iou<(iou.max(axis=0)[None, :])] = 0
+
+        nearest_words = np.argmax(iou, axis=1)
+        caption_is_correct = gt_per_page_captions[page_id][nearest_words] == query
+        best_match_iou = np.max(iou, axis=1)
+        iou_is_correct = best_match_iou > iou_thr
+        iou_of_correct[np.array(answers_per_page_idx[page_id], dtype=np.long)] = best_match_iou
+        correct[np.array(answers_per_page_idx[page_id], dtype=np.long)] = caption_is_correct * iou_is_correct
+    #precision_at = np.cumsum(correct)/float(query_freq)
+    precision_at = np.cumsum(correct) / (1+np.arange(len(correct)))
+    if sum(correct):
+        average_precision = precision_at[correct].mean()
+    else:
+        average_precision = 0.
+    return(average_precision, precision_at, correct, iou_of_correct[correct])
+
 
 
 if __name__ == '__main__':
     p, _ = fargv.fargv(p)
-    url = f"http://{p.server}:{p.port}/searchword"
-    query_dict = {"query": {"q_str": p.query},
-                  "rectangles_per_document": p.rectangles_per_document,
-                  "max_rectangles": p.max_rectangles}
-    r = requests.post(url, json=query_dict)
-    print("Return code:", r.status_code)
-    results = r.json()
-    print("Result :", repr(results))
-    if p.shown_word_count > 0:
-        img = image_result(results, p.shown_word_count, p.db_root)
-        img.save(p.output)
-        if p.show:
-            img.show()
+    gt_per_page_rects, gt_per_page_captions, vocabulary, vocabulary_freq = load_gt(p.gt_json)
+    if len(p.words) > 0:
+        words = p.words
+    else:
+        words = vocabulary
+    t = time.time()
+    all_ap = np.zeros(len(vocabulary))
+    for n, word in enumerate(words):
+        url = f"http://{p.server}:{p.port}/searchword"
+        query_dict = {"query": {"q_str": word},
+                      "rectangles_per_document": p.rectangles_per_document,
+                      "max_rectangles": p.max_rectangles}
+        r = requests.post(url, json=query_dict)
+        #print(f"{n:03}/{len(words)}: {word} {time.time()-t:0.5} sec. {word} Status:{r.status_code}")
+        answers = r.json()
+        ap, precision_at, correct, iou_of_correct = average_precision(answers, gt_per_page_rects, gt_per_page_captions, word, vocabulary_freq[word], p.iou_threshold)
+        all_ap[n] = ap
+        print(f"{n:6}: {repr(word):17}/{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean()):10.6}", precision_at[correct].tolist()[:3], iou_of_correct.tolist()[:3])
+    print(f"mAP of {len(vocabulary_freq)} queries: {100*all_ap.mean()}")
+        #print(results["rectangles"])
+        #print("Result :", repr(results))
