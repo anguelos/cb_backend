@@ -130,10 +130,14 @@ class Embedder(nn.Module):
                 word_img = page.crop((left, top, right, bottom))
                 word_img = resize_word(word_img, fixed_size=self.fixed_size, pad_mode=self.resize_mode)
                 if word_img.mode == "LA":
-                    word_tensor = torch.from_numpy(np.array(word_img)).unsqueeze(dim=2).transpose(0, 2).transpose(1, 2).to(device)
+                    word_tensor = torch.from_numpy(np.array(word_img))
+                    if len(word_tensor.size()) == 2:
+                        word_tensor = word_tensor.unsqueeze(dim=2)
+                    word_tensor = word_tensor.transpose(0, 2).transpose(1, 2).to(device)
+                    word_tensor = word_tensor[:1, :, :]
                 else:  # mode == "RGB"
-                    word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device) /255.
-                dataset.append((word_tensor, torch.tensor([left, top, right, bottom])))
+                    word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device)
+                dataset.append((word_tensor.float() / 255., torch.tensor([left, top, right, bottom])))
             self.to(device)
             self.train(False)
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
