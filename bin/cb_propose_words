@@ -21,7 +21,7 @@ p = {
     "target_postfix": ".words.pickle",
     "target_prefix": "",
     "box_model": "/tmp/box_iou.pt",
-    "rlsa_distances": [0,2,4,6,12,18,24],
+    "rlsa_distances": [0, 2, 4, 6, 12, 18, 24],
     "thresholds": [32, 64, 128, 224],
     "nms_threshold": .6,
     "min_word_length": 8,

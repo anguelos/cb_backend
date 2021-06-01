@@ -1,6 +1,7 @@
 ### Install packages in ubuntu for deployment and remote development
 ```bash
 sudo apt-get install parallel byobu mc lynx python3-pip pssh
+pip3 install --user gpustat  # run it as a gpu htop with: watch -n 0.5 -c gpustat -cp --color
 ```
 
 ### Install packages in ubuntu for deployment and remote development
@@ -44,14 +45,29 @@ sudo sh -c 'echo "MKL_THREADING_LAYER=GNU" >> /etc/environment' # ~/.bash_profil
 mkdir -p models
 mkdir -p ./data/compiled_fake_db/
 cd ./data/
-wget rr.visioner.ca/assets/cbws/fake_db.tar.bz2
+
+wget -c rr.visioner.ca/assets/cbws/fake_db.tar.bz2
+wget -c rr.visioner.ca/assets/cbws/demo_db.tar.bz2
+
 tar -xpvjf fake_db.tar.bz2
-mkdir -p fake_db_overlaid/chronicle
-cp -Rp ./fake_db/*/chronicle/* ./fake_db_overlaid/chronicle
+(mkdir demo_db; cd demo_db; tar -xpvjf demo_db.tar.bz2)
+
+mkdir -p fake_db_overlaid_all/chronicle
+cp -Rp ./fake_db/*/chronicle/* ./fake_db_overlaid_all/chronicle
+mkdir -p fake_db_overlaid_test/chronicle
+cp -Rp ./fake_db/chudenice_2/chronicle/* ./fake_db/plasy/chronicle/* ./fake_db_overlaid_test/chronicle
+
 cd ../models
 wget rr.visioner.ca/assets/cbws/phocnet_0x0.pt
 wget rr.visioner.ca/assets/cbws/srunet.pt
 wget rr.visioner.ca/assets/cbws/box_iou.pt
 cd ..
+
+```
+
+### Filesystems
+```bash
+mkdir -p /data/storage/overlay/cb_91/fake_db
+mount -t overlay overlay -o lowerdir=/data/storage/new_root/fake_db,workdir=/data/storage/overlay/cb_91/fake_db /data/storage/union_fake_db
 
 ```

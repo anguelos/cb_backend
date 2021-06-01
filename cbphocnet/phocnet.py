@@ -8,13 +8,15 @@ from PIL import Image
 import numpy as np
 import pathlib
 import hashlib
-
+from .cb_datasets import resize_word
 
 def resume_embedder(fname, allow_fail=True, net=None):
     if net is not None and allow_fail and not pathlib.Path(fname).is_file():
         return net, {}
     store_data = torch.load(fname, map_location="cpu")
     if net is None:
+        if "resize_mode" not in store_data["contructor_params"].keys():
+            store_data["contructor_params"]["resize_mode"] = "padcropscale"
         net = eval(store_data["class_name"])(**store_data["contructor_params"])
     else:
         assert type(net).__name__ == store_data["class_name"]
@@ -27,16 +29,17 @@ def resume_embedder(fname, allow_fail=True, net=None):
 
 
 class Embedder(nn.Module):
-    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
+    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__()
         if gpp_type not in ['spp', 'tpp', 'gpp']:
             raise ValueError('Unknown pooling_type. Must be either \'gpp\', \'spp\' or \'tpp\'')
+        self.resize_mode = resize_mode
         self.unigrams = unigrams
         self.unigram_pyramids = unigram_pyramids
         self.fixed_size = fixed_size
         self.params = {"unigrams": unigrams, "unigram_pyramids": unigram_pyramids, "fixed_size": fixed_size,
                        "input_channels": input_channels, "gpp_type": gpp_type, "pooling_levels": pooling_levels,
-                       "pool_type": pool_type}
+                       "pool_type": pool_type, "resize_mode": resize_mode}
 
     def retrieval_distance_metric(self):
         raise NotImplemented()
@@ -75,12 +78,13 @@ class Embedder(nn.Module):
         words = [unidecode.unidecode(w) for w in words]
         return build_phoc_descriptor(words, self.unigrams, self.unigram_pyramids)
 
-    def embed_image(self, img: Image, device):
+    def embed_image(self, word_image: Image, device):
+        word_image = resize_word(word_image, fixed_size = self.fixed_size, pad_mode=self.resize_mode)
         if self.params["input_channels"] == 1:
-            word_img = torch.from_numpy(np.array(img.convert("LA"))[:, :, 0]).float().to(device)
+            word_img = torch.from_numpy(np.array(word_image.convert("LA"))[:, :, 0]).float().to(device)
             word_img = word_img.unsqueeze(dim=2)
         else:
-            word_img = torch.from_numpy(np.array(img.convert("RGB"))).float().to(device)
+            word_img = torch.from_numpy(np.array(word_image.convert("RGB"))).float().to(device)
         word_img = word_img.transpose(0, 2).transpose(1, 2)
         dl = torch.utils.data.DataLoader([[word_img, 0]]) # we use a data loader because under some conditions raw tensors can cause a memory leak.
         embeddings = []
@@ -88,20 +92,48 @@ class Embedder(nn.Module):
             embeddings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
         return embeddings[0]
 
+    # def embed_rectangles(self, img: Image, ltrb: np.array, device: str, batch_size: int):
+    #     with torch.no_grad():
+    #         if self.params["input_channels"] == 1:
+    #             page = torch.from_numpy(np.array(img.convert("LA"))[:, :, 0]).float().to(device)
+    #             page = page.unsqueeze(dim=2)
+    #         else:
+    #             page = torch.from_numpy(np.array(img.convert("RGB"))).float().to(device)
+    #         page = page.transpose(0, 2).transpose(1, 2)
+    #         dataset = []
+    #         boxes = ltrb.tolist()
+    #         for left, top, right, bottom in boxes:
+    #             right_end = min(right + 1, page.size(2))
+    #             bottom_end = min(bottom + 1, page.size(1))
+    #             dataset.append((page[:, top:bottom_end, left:right_end], torch.tensor([left, top, right, bottom])))
+    #         self.to(device)
+    #         self.train(False)
+    #         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    #         embedings = []
+    #         rectangles = []
+    #         for data, boxes in dataloader:
+    #             embedings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
+    #             rectangles.append(boxes.numpy())
+    #         embedings = np.concatenate(embedings, axis=0)
+    #         rectangles = np.concatenate(rectangles, axis=0)
+    #         return rectangles, embedings
+
     def embed_rectangles(self, img: Image, ltrb: np.array, device: str, batch_size: int):
         with torch.no_grad():
             if self.params["input_channels"] == 1:
-                page = torch.from_numpy(np.array(img.convert("LA"))[:, :, 0]).float().to(device)
-                page = page.unsqueeze(dim=2)
+                page = img.convert("LA")
             else:
-                page = torch.from_numpy(np.array(img.convert("RGB"))).float().to(device)
-            page = page.transpose(0, 2).transpose(1, 2)
+                page = img.convert("RGB")
             dataset = []
             boxes = ltrb.tolist()
             for left, top, right, bottom in boxes:
-                right_end = min(right + 1, page.size(2))
-                bottom_end = min(bottom + 1, page.size(1))
-                dataset.append((page[:, top:bottom_end, left:right_end], torch.tensor([left, top, right, bottom])))
+                word_img = page.crop((left, top, right, bottom))
+                word_img = resize_word(word_img, fixed_size=self.fixed_size, pad_mode=self.resize_mode)
+                if word_img.mode == "LA":
+                    word_tensor = torch.from_numpy(np.array(word_img)).unsqueeze(dim=2).transpose(0, 2).transpose(1, 2).to(device)
+                else:  # mode == "RGB"
+                    word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device)
+                dataset.append((word_tensor, torch.tensor([left, top, right, bottom])))
             self.to(device)
             self.train(False)
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
@@ -115,9 +147,8 @@ class Embedder(nn.Module):
             return rectangles, embedings
 
 
-
 class PHOCNet(Embedder):
-    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
+    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__(unigrams=unigrams, unigram_pyramids=unigram_pyramids, fixed_size=fixed_size, input_channels=input_channels,gpp_type=gpp_type,pooling_levels=pooling_levels, pool_type='max_pool')
         # some sanity checks
         # set up Conv Layers
@@ -237,7 +268,7 @@ class PHOCResNet(Embedder):
     def arch_hash(self):
         return hashlib.md5(("PHOCNet"+repr(sorted(self.params.items()))).encode("utf-8")).hexdigest()
 
-    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool'):
+    def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__(unigrams=unigrams, unigram_pyramids=unigram_pyramids, fixed_size=fixed_size, input_channels=input_channels,gpp_type=gpp_type,pooling_levels=pooling_levels, pool_type='max_pool')
         n_out = len(unigrams)*sum(unigram_pyramids)
 

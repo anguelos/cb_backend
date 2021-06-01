@@ -15,11 +15,11 @@ from typing import Tuple
 from .phoc import build_phoc_descriptor
 
 def resize_word(word:Image, fixed_size:Tuple[int,int], pad_mode:str):
-    if fixed_size == (0, 0):
+    if fixed_size is None or fixed_size == (0, 0):
         return word
-    if fixed_size is not None and pad_mode == "scale":
+    elif pad_mode == "scale":
         word = word.resize(fixed_size)
-    elif fixed_size is not None and pad_mode == "padcropscale":
+    elif pad_mode == "padcropscale":
         in_w, in_h = word.size
         out_w, out_h = fixed_size
         if in_w / out_w > 1 or in_h / out_h > 1:
@@ -45,7 +45,7 @@ class CBDataset(object):
             gt = json.load(open(id2gt[id]))
             page = Image.open(id2img[id])
             if input_channels == 1:
-                page=page.convert('L')
+                page = page.convert('L')
             elif input_channels == 3:
                 page = page.convert('RGB')
             else:
