@@ -85,7 +85,7 @@ class Embedder(nn.Module):
             word_img = word_img.unsqueeze(dim=2)
         else:
             word_img = torch.from_numpy(np.array(word_image.convert("RGB"))).float().to(device)
-        word_img = word_img.transpose(0, 2).transpose(1, 2)
+        word_img = word_img.transpose(0, 2).transpose(1, 2) / 255.
         dl = torch.utils.data.DataLoader([[word_img, 0]]) # we use a data loader because under some conditions raw tensors can cause a memory leak.
         embeddings = []
         for data, _ in dl:
@@ -132,7 +132,7 @@ class Embedder(nn.Module):
                 if word_img.mode == "LA":
                     word_tensor = torch.from_numpy(np.array(word_img)).unsqueeze(dim=2).transpose(0, 2).transpose(1, 2).to(device)
                 else:  # mode == "RGB"
-                    word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device)
+                    word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device) /255.
                 dataset.append((word_tensor, torch.tensor([left, top, right, bottom])))
             self.to(device)
             self.train(False)
