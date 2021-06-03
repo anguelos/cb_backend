@@ -139,11 +139,14 @@ if __name__ == '__main__':
         precisions_at_5.append(precision_at[4])
         precisions_at_10.append(precision_at[9])
         precisions_at_10.append(precision_at[99])
-        recall_at = np.cumsum(correct) / correct.sum()
+        nb_items = correct.sum()
+        if nb_items < 1:
+            nb_items = 1
+        recall_at = np.cumsum(correct) / nb_items
         recall_at_10.append(recall_at[9])
         recall_at_100.append(recall_at[99])
     header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100"]
-    values = [f"{p.experiment_name}",f"{len(vocabulary_freq)}", f"{100*all_ap.mean()}", f"{100*np.mean(precisions_at_1)}",
+    values = [f"{p.experiment_name}", f"{len(vocabulary_freq)}", f"{100*all_ap.mean()}", f"{100*np.mean(precisions_at_1)}",
               f"{100*np.mean(precisions_at_5)}", f"{100*np.mean(precisions_at_10)}",f"{100*np.mean(precisions_at_100)}",
               f"{100*np.mean(recall_at_10)}", f"{100*np.mean(recall_at_100)}"]
     #print(f"mAP of {len(vocabulary_freq)} queries: {100*all_ap.mean()}")
