@@ -133,7 +133,8 @@ if __name__ == '__main__':
 
         all_ap[n] = ap
         if p.print_queries:
-            print(f"{n:6}: {repr(word):17}/{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean()):10.6}\tTop-3 p@:", precision_at[correct].tolist()[:3]*100, "\tTop-3 IoU:",iou_of_correct.tolist()[:3])
+            with np.printoptions(precision=3, suppress=True):
+                print(f"{n:6}: {repr(word):17}/{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean())}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:",iou_of_correct[:3])
         precisions_at_1.append(precision_at[0])
         precisions_at_5.append(precision_at[4])
         precisions_at_10.append(precision_at[9])
