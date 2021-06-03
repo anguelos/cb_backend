@@ -10,6 +10,7 @@ import numpy as np
 import time
 from collections import defaultdict
 from cbsegm import get_iou
+import time
 
 p = {
     "port": 8080,
@@ -121,6 +122,7 @@ if __name__ == '__main__':
     precisions_at_100 = []
     recall_at_100 = []
     recall_at_10 = []
+    t = time.time()
     for n, word in enumerate(words):
         url = f"http://{p.server}:{p.port}/searchword"
         query_dict = {"query": {"q_str": word},
@@ -144,7 +146,7 @@ if __name__ == '__main__':
         recall_at_100.append(recall_at[99])
         if p.print_queries:
             with np.printoptions(precision=3, suppress=True):
-                print(f"{n:6}: {repr(word):17} #{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean())}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1])
+                print(f"{(time.time()-t)/n:.3f}{n:6}: {repr(word):17} #{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean())}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1])
 
     header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100"]
     values = [f"{p.experiment_name}", f"{len(vocabulary_freq)}", f"{100*all_ap.mean():.3f}", f"{100*np.mean(precisions_at_1):.3f}",
