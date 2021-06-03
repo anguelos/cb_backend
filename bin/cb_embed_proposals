@@ -11,6 +11,7 @@ import pickle
 import time
 import hashlib
 import pathlib
+import torch
 
 from PIL import Image, ImageFile
 
@@ -22,11 +23,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 #chronicle/soap-kv/soap-kv_00246_obec-jakubov-1958/soap-kv_00246_obec-jakubov-1958_0600.jp2
 
 p = {
-     "phocnet":"./models/phocnet_0x0.pt",
-     "docname":"blovice",
-     "db_root":"./data/fake_db",
-     "image_glob":"{db_root}/{docname}/*jp2",
-     "words_glob":"{db_root}/{docname}/*.words.pickle",
+     "phocnet": "./models/phocnet_0x0.pt",
+     "docname": "blovice",
+     "db_root": "./data/fake_db",
+     "image_glob": "{db_root}/{docname}/*jp2",
+     "words_glob": "{db_root}/{docname}/*.words.pickle",
      "image_files": set([]),
      "words_files": set([]),
      "output_basename": "./data/compiled_fake_db/",
@@ -37,7 +38,19 @@ p = {
 }
 
 
-def compile_page(net, page_path, words_path, batch_size, device):
+def compile_page(net: torch.nn.Module, page_path:str, words_path:str, batch_size:int, device):
+    """Embeds proposals of a single page.
+
+    Args:
+        net: The embedding network an instance of cbphocnet.Embedder
+        page_path: a string with the path to the full page image
+        words_path:
+        batch_size:
+        device: a string with a valid pytorch device
+
+    Returns:
+
+    """
     img = Image.open(page_path)
     if words_path.endswith(".json"):
         rectangles_ltrb = np.array(json.load(open(words_path,"r"))["rectangles_ltrb"], dtype=np.int32)
