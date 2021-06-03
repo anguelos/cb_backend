@@ -21,7 +21,10 @@ p = {
     "rectangles_per_document": 10000,
     "max_rectangles": 100000,
     "indexing_net": "./models/phocnet_0x0.pt",
-    "iou_threshold": .2
+    "iou_threshold": .2,
+    "experiment_name":"NA",
+    "output_mode": ("markdown", "latex", "stdio"),
+    "print_queries": True
 }
 
 
@@ -57,7 +60,7 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
         answers_per_page_idx[tuple(answer[:2])].append(idx)
     #print(sorted(gt_per_page_rects.keys()))
     #print(sorted(answers_per_page_idx.keys()))
-    assert set(answers_per_page_idx.keys()) >= set(gt_per_page_rects.keys())
+    #assert set(answers_per_page_idx.keys()) >= set(gt_per_page_rects.keys())
     correct = np.zeros(len(answers), dtype=np.bool)
     iou_of_correct = np.zeros(len(answers), dtype=np.float)
     for page_id in gt_per_page_rects.keys():
@@ -82,6 +85,26 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
     return(average_precision, precision_at, correct, iou_of_correct[correct])
 
 
+def print_output(header, values, mode="markdown"):
+    print("")
+    if mode == "markdown":
+        print("|"+"|".join(header)+"|")
+        print("|" + "|".join(["-"*len(h) for h in header]) + "|")
+        print("|" + "|".join([f"{v}" for v in values]) + "|")
+
+    elif mode == "latex":
+        print(" & ".join(header)+" \\\\")
+        print("\\hr")
+        print(" & ".join([f"{v}" for v in values]) + " \\\\")
+
+    elif mode == "stdio":
+        print(header)
+        print([f"{v}" for v in values])
+
+    else:
+        raise ValueError
+
+
 
 if __name__ == '__main__':
     p, _ = fargv.fargv(p)
@@ -92,6 +115,12 @@ if __name__ == '__main__':
         words = vocabulary
     t = time.time()
     all_ap = np.zeros(len(vocabulary))
+    precisions_at_1 = []
+    precisions_at_5 = []
+    precisions_at_10 = []
+    precisions_at_100 = []
+    recall_at_100 = []
+    recall_at_10 = []
     for n, word in enumerate(words):
         url = f"http://{p.server}:{p.port}/searchword"
         query_dict = {"query": {"q_str": word},
@@ -101,8 +130,20 @@ if __name__ == '__main__':
         #print(f"{n:03}/{len(words)}: {word} {time.time()-t:0.5} sec. {word} Status:{r.status_code}")
         answers = r.json()
         ap, precision_at, correct, iou_of_correct = average_precision(answers, gt_per_page_rects, gt_per_page_captions, word, vocabulary_freq[word], p.iou_threshold)
+
         all_ap[n] = ap
-        print(f"{n:6}: {repr(word):17}/{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean()):10.6}", precision_at[correct].tolist()[:3], iou_of_correct.tolist()[:3])
-    print(f"mAP of {len(vocabulary_freq)} queries: {100*all_ap.mean()}")
-        #print(results["rectangles"])
-        #print("Result :", repr(results))
+        if p.print_queries:
+            print(f"{n:6}: {repr(word):17}/{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean()):10.6}\tTop-3 p@:", precision_at[correct].tolist()[:3]*100, "\tTop-3 IoU:",iou_of_correct.tolist()[:3])
+        precisions_at_1.append(precision_at[0])
+        precisions_at_5.append(precision_at[4])
+        precisions_at_10.append(precision_at[9])
+        precisions_at_10.append(precision_at[99])
+        recall_at = np.cumsum(correct) / correct.sum()
+        recall_at_10.append(recall_at[9])
+        recall_at_100.append(recall_at[99])
+    header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100"]
+    values = [f"{p.experiment_name}",f"{len(vocabulary_freq)}", f"{100*all_ap.mean()}", f"{100*np.mean(precisions_at_1)}",
+              f"{100*np.mean(precisions_at_5)}", f"{100*np.mean(precisions_at_10)}",f"{100*np.mean(precisions_at_100)}",
+              f"{100*np.mean(recall_at_10)}", f"{100*np.mean(recall_at_100)}"]
+    #print(f"mAP of {len(vocabulary_freq)} queries: {100*all_ap.mean()}")
+    print_output(header, values, mode=p.output_mode)
