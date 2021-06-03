@@ -135,7 +135,7 @@ if __name__ == '__main__':
         precisions_at_1.append(precision_at[0])
         precisions_at_5.append(precision_at[4])
         precisions_at_10.append(precision_at[9])
-        precisions_at_10.append(precision_at[99])
+        precisions_at_100.append(precision_at[99])
         nb_items = correct.sum()
         if nb_items < 1:
             nb_items = 1
