@@ -122,15 +122,18 @@ if __name__ == '__main__':
     precisions_at_100 = []
     recall_at_100 = []
     recall_at_10 = []
-    t = time.time()
+    total_time=0.
+
     for n, word in enumerate(words):
         url = f"http://{p.server}:{p.port}/searchword"
         query_dict = {"query": {"q_str": word},
                       "rectangles_per_document": p.rectangles_per_document,
                       "max_rectangles": p.max_rectangles}
+        t = time.time()
         r = requests.post(url, json=query_dict)
         #print(f"{n:03}/{len(words)}: {word} {time.time()-t:0.5} sec. {word} Status:{r.status_code}")
         answers = r.json()
+        total_time+=(time.time()-t)
         ap, precision_at, correct, iou_of_correct = average_precision(answers, gt_per_page_rects, gt_per_page_captions, word, vocabulary_freq[word], p.iou_threshold)
 
         all_ap[n] = ap
@@ -146,11 +149,11 @@ if __name__ == '__main__':
         recall_at_100.append(recall_at[99])
         if p.print_queries:
             with np.printoptions(precision=3, suppress=True):
-                print(f"{n:6} : {(time.time()-t)/(n+1):.3f} : {repr(word):17} #{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean())}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1])
+                print(f"{n:6} : {(total_time)/(n+1):.3f} : {repr(word):17} #{vocabulary_freq[word]}: {ap:}\t  cummulative mAP:{100*(all_ap[:n].mean())}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1])
 
     header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100", "Computation Time"]
     values = [f"{p.experiment_name}", f"{len(vocabulary_freq)}", f"{100*all_ap.mean():.3f}", f"{100*np.mean(precisions_at_1):.3f}",
               f"{100*np.mean(precisions_at_5):.3f}", f"{100*np.mean(precisions_at_10):.3f}",f"{100*np.mean(precisions_at_100):.3f}",
-              f"{100*np.mean(recall_at_10):.3f}", f"{100*np.mean(recall_at_100):.3f}", f"{(time.time()-t)/len(words):.3f}"]
+              f"{100*np.mean(recall_at_10):.3f}", f"{100*np.mean(recall_at_100):.3f}", f"{(total_time)/len(words):.3f}"]
     #print(f"mAP of {len(vocabulary_freq)} queries: {100*all_ap.mean()}")
     print_output(header, values, mode=p.output_mode)
