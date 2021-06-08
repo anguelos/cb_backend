@@ -39,13 +39,30 @@ class IndexServer(object):
             img = Image.open(BytesIO(base64.b64decode(query["q_img"])))
             embedding = self.embedding_net.embed_image(img)
         elif "q_ref" in query:
-            img_path = glob.glob(f"{self.db_root}/{query['q_ref'][0]}/*{query['q_ref'][1]:04}*")[0]
-            croped_img = Image.open(img_path).crop(query['q_ref'][2:])
+            reference_wildcard = f"{self.db_root}/{query['q_ref'][0]}/*{query['q_ref'][1]:04}*"
+            try:
+                img_path = glob.glob(reference_wildcard)[0]
+            except Exception as e:
+                return {"rectangles": [], "search_time": (time.time() - t),
+                        "status": f"Could not find reference document {repr(reference_wildcard)}"}
+            try:
+                croped_img = Image.open(img_path).crop(query['q_ref'][2:])
+            except Exception as e:
+                return {"rectangles": [], "search_time": (time.time() - t),
+                        "status": f"Could not open reference page {repr(img_path)}"}
             embedding = self.embedding_net.embed_image(croped_img, device="cpu")
         else:
-            raise ValueError
-        responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
-        return {"rectangles": responces, "search_time": (time.time()-t)}
+            return {"rectangles": [], "search_time": (time.time() - t), "status": f"unknown query type {repr(query)}"}
+
+        try:
+            responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
+        except KeyError as e:  #  todo (anguelos) implement proper Exception Classes
+            status = f"Document Context Not Found:{ctx_docnames}\n\n{e.__doc__}\n\n{e.message}"
+            return {"rectangles": [], "search_time": (time.time() - t), "status": status}
+        except Exception as e:
+            status = f"Generic exception while {e.__doc__}\n\n{e.message}"
+            return {"rectangles": [], "search_time": (time.time() - t), "status": status}
+        return {"rectangles": responces, "search_time": (time.time()-t), "status": "OK"}
 
 
     @cherrypy.expose
