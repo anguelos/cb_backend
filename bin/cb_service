@@ -10,6 +10,7 @@ from cbdiadb import NumpyIndex
 import glob
 import cbphocnet
 import time
+import datetime
 
 
 class IndexServer(object):
@@ -48,8 +49,10 @@ class IndexServer(object):
             try:
                 croped_img = Image.open(img_path).crop(query['q_ref'][2:])
             except Exception as e:
+                status = f"Could not open reference page:{img_path}\n\n{str(e)}\n\n{e.__traceback__}"
+                print(status)
                 return {"rectangles": [], "search_time": (time.time() - t),
-                        "status": f"Could not open reference page {repr(img_path)}"}
+                        "status": status}
             embedding = self.embedding_net.embed_image(croped_img, device="cpu")
         else:
             return {"rectangles": [], "search_time": (time.time() - t), "status": f"unknown query type {repr(query)}"}
@@ -58,9 +61,11 @@ class IndexServer(object):
             responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
         except KeyError as e:  #  todo (anguelos) implement proper Exception Classes
             status = f"Document Context Not Found:{ctx_docnames}\n\n{str(e)}\n\n{e.__traceback__}"
+            print(status)
             return {"rectangles": [], "search_time": (time.time() - t), "status": status}
         except Exception as e:
             status = f"Generic Exception\n\n{str(e)}\n\n{e.__traceback__}"
+            print(status)
             return {"rectangles": [], "search_time": (time.time() - t), "status": status}
         return {"rectangles": responces, "search_time": (time.time()-t), "status": "OK"}
 
