@@ -57,10 +57,10 @@ class IndexServer(object):
         try:
             responces = self.db.search(embedding, ctx_docnames=ctx_docnames, max_responces=max_responces, max_occurence_per_document=max_occurence_per_document)
         except KeyError as e:  #  todo (anguelos) implement proper Exception Classes
-            status = f"Document Context Not Found:{ctx_docnames}\n\n{e.__doc__}\n\n{e.message}"
+            status = f"Document Context Not Found:{ctx_docnames}\n\n{e.__doc__}\n\n{e.msg}"
             return {"rectangles": [], "search_time": (time.time() - t), "status": status}
         except Exception as e:
-            status = f"Generic exception while {e.__doc__}\n\n{e.message}"
+            status = f"Generic exception while {e.__doc__}\n\n{e.msg}"
             return {"rectangles": [], "search_time": (time.time() - t), "status": status}
         return {"rectangles": responces, "search_time": (time.time()-t), "status": "OK"}
 
