@@ -75,7 +75,7 @@ def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxne
 
     makefile_str = f".EXPORT_ALL_VARIABLES:\n\nPYTHONPATH = {pythonpath}\n\n" + makefile_str
 
-    makefile_str = f"all: {all_dependencies}\n\n" + makefile_str
+    makefile_str = f"ALL: {all_dependencies}\n\n" + makefile_str
 
     makefile_str += f"clean_bin:\n\trm {' '.join(prob_images)}\n\n"
     makefile_str += f"clean_boxes:\n\trm {' '.join(proposals)}\n\n"
@@ -91,7 +91,7 @@ def render_makefile(chronicle_name, device, cb_root, db_root, binnet_path, boxne
 
 
 p = {
-    "chronicle_paths": set(glob.glob("./data/fake_db/*/*/*")),
+    "chronicle_paths": set(glob.glob("./data/fake_db/*/*/*/*")),
     "make_filename": "Makefile",
     "device": "cuda",
     "cb_root": "./",
@@ -109,6 +109,7 @@ p = {
     "add_clean": False,
     "proposal_params": " -rlsa_distances [0,2,4,6,12,18,24] -thresholds [32,64,128,224] -nms_threshold .6 -min_word_length 8 -min_word_height 6 -max_word_length .2 -max_word_height .1 ",
     "pythonpath": "./:./thirdparty/iunets/",
+    "makefile_shards":1,
 }
 
 
@@ -124,14 +125,26 @@ if __name__ == "__main__":
         makefile_path = f"{chronicle_path}/{p['make_filename']}"
         kwargs = {}
         kwargs.update(p)
+        makefile_shards = p["makefile_shards"]
         del kwargs["make_filename"]
         del kwargs["chronicle_paths"]
+        del kwargs["makefile_shards"]
         kwargs["chronicle_name"] = cbdiadb.documentpath_to_documentid(documentpath=chronicle_path, document_root=p["db_root"])
         makefile_content, idx_file = render_makefile(**kwargs)
         open(makefile_path, "wt").write(makefile_content)
         total_makefile_str += f"\n{idx_file}: {p['phocnet_path']} {p['boxnet_path']} {p['binnet_path']}\n\tmake -f {makefile_path}\n\n"
         all_indexes.append(idx_file)
-    total_makefile_str = "ALL: " + " ".join(all_indexes) + "\n\n" + total_makefile_str
-    if p["add_clean"]:
-        total_makefile_str += f"\nclean:\n\trm {' '.join(all_indexes)}\n\n"
-    open(f"{p['archive_location']}/Makefile", "w").write(total_makefile_str)
+    print("Reducing redundants:", len(all_indexes),len(set(all_indexes)))
+    all_indexes = sorted(set(all_indexes))
+    if p["makefile_shards"] == 1:
+        shards = {f"{p['archive_location']}/Makefile": all_indexes}
+    else:
+        shards = {}
+        for shard_n in range(makefile_shards):
+            shard_indexes = [all_indexes[n] for n in range(len(all_indexes)) if n % makefile_shards==shard_n]
+            shards[f"{p['archive_location']}/makefile_{shard_n}_of_{makefile_shards}.mak"] = shard_indexes
+    for makefile_name, indexes in shards.items():
+        shard_makefile_str = "ALL: " + " ".join(all_indexes) + "\n\n" + total_makefile_str  # Todo (anguelos) remove redundant entries
+        if p["add_clean"]:
+            shard_makefile_str += f"\nclean:\n\trm {' '.join(all_indexes)}\n\n"
+        open(makefile_name, "w").write(shard_makefile_str)
