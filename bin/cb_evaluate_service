@@ -83,9 +83,9 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
         correct[np.array(answers_per_page_idx[page_id], dtype=np.long)] = caption_is_correct * iou_is_correct
     #precision_at = np.cumsum(correct)/float(query_freq)
 
-    possible_correct = np.cumsum(np.ones_like(correct), axis=1)
-    mask_possible_correct = possible_correct>=correct.sum(axis=1)[:,None]
-    possible_correct = np.cumsum(mask_possible_correct, axis=1)
+    possible_correct = np.cumsum(np.ones_like(correct))
+    mask_possible_correct = possible_correct>=correct.sum()
+    possible_correct = np.cumsum(mask_possible_correct)
 
     precision_at = np.cumsum(correct) / possible_correct
     if sum(correct):
