@@ -88,6 +88,7 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
     possible_correct = np.cumsum(mask_possible_correct)
 
     precision_at = np.cumsum(correct) / possible_correct
+
     if sum(correct):
         average_precision = precision_at[correct].mean()
     else:
