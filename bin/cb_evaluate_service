@@ -65,20 +65,29 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
     correct = np.zeros(len(answers), dtype=np.bool)
     iou_of_correct = np.zeros(len(answers), dtype=np.float)
     for page_id in gt_per_page_rects.keys():
+        answers_per_page = np.array(answers_per_page_idx[page_id])
         gt_rectangles = gt_per_page_rects[page_id]
-        iou = get_iou(np.array(answers_per_page_rects[page_id]), gt_rectangles)
+        if len(answers_per_page) and len(gt_rectangles):
+            iou = get_iou(answers_per_page, gt_rectangles)
 
         # each GT object matched only once
         #iou[iou<(iou.max(axis=0)[None, :])] = 0
 
-        nearest_words = np.argmax(iou, axis=1)
-        caption_is_correct = gt_per_page_captions[page_id][nearest_words] == query
+            nearest_words = np.argmax(iou, axis=1)
+            caption_is_correct = gt_per_page_captions[page_id][nearest_words] == query
+        else:
+            caption_is_correct = gt_per_page_captions[page_id] != "INVALID"
         best_match_iou = np.max(iou, axis=1)
         iou_is_correct = best_match_iou > iou_thr
         iou_of_correct[np.array(answers_per_page_idx[page_id], dtype=np.long)] = best_match_iou
         correct[np.array(answers_per_page_idx[page_id], dtype=np.long)] = caption_is_correct * iou_is_correct
     #precision_at = np.cumsum(correct)/float(query_freq)
-    precision_at = np.cumsum(correct) / (1+np.arange(len(correct)))
+
+    possible_correct = np.cumsum(np.ones_like(correct), axis=1)
+    mask_possible_correct = possible_correct>=correct.sum(axis=1)[:,None]
+    possible_correct = np.cumsum(mask_possible_correct, axis=1)
+
+    precision_at = np.cumsum(correct) / possible_correct
     if sum(correct):
         average_precision = precision_at[correct].mean()
     else:
@@ -149,7 +158,7 @@ if __name__ == '__main__':
         recall_at_100.append(recall_at[99])
         if p.print_queries:
             with np.printoptions(precision=3, suppress=True):
-                print(f"{n:6} : {(total_time)/(n+1):.3f} : {repr(word):17} #{vocabulary_freq[word]}: {100*ap:.3f}\t  cummulative mAP:{100*(all_ap[:n].mean()):.3f}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1])
+                print(f"{n:6} : {(total_time)/(n+1):.3f} : {repr(word):17} #{vocabulary_freq[word]}: {100*ap:.3f}\t cummulative mAP:{100*(all_ap[:n].mean()):.3f}\tTop-3 p@:", precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1],  "\tRecall @end:", recall_at[-1])
 
     header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100", "Computation Time"]
     values = [f"{p.experiment_name}", f"{len(vocabulary_freq)}", f"{100*all_ap.mean():.3f}", f"{100*np.mean(precisions_at_1):.3f}",
