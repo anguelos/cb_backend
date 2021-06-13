@@ -65,7 +65,7 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
     correct = np.zeros(len(answers), dtype=np.bool)
     iou_of_correct = np.zeros(len(answers), dtype=np.float)
     for page_id in gt_per_page_rects.keys():
-        answers_per_page_rects = np.array(answers_per_page_idx[page_id])
+        answers_per_page_rects = np.array(answers_per_page_rects[page_id])
         gt_rectangles = gt_per_page_rects[page_id]
         if len(answers_per_page_rects) and len(gt_rectangles):
             iou = get_iou(answers_per_page_rects, gt_rectangles)
