@@ -7,10 +7,11 @@ import json
 import cbdiadb
 import cbphocnet
 import numpy as np
-import time
 from collections import defaultdict
 from cbsegm import get_iou
 import time
+import sys
+import pickle
 
 p = {
     "port": 8080,
@@ -25,7 +26,9 @@ p = {
     "iou_threshold": .2,
     "experiment_name":"NA",
     "output_mode": ("markdown", "latex", "stdio"),
-    "print_queries": True
+    "print_queries": True,
+    "save_data_path": f"/tmp/evaluate_{int(time.time()):010}.pickle",
+    "save_data_freq": 10
 }
 
 
@@ -138,6 +141,12 @@ if __name__ == '__main__':
     recall_at_10 = []
     total_time=0.
 
+    accumulated_correct = []
+    accumulated_queries = []
+    accumulated_querie_occurence = []
+    accumulated_iou = []
+
+
     for n, word in enumerate(words):
         url = f"http://{p.server}:{p.port}/searchword"
         query_dict = {"query": {"q_str": word},
@@ -161,11 +170,19 @@ if __name__ == '__main__':
         recall_at = np.cumsum(correct) / nb_items
         recall_at_10.append(recall_at[9])
         recall_at_100.append(recall_at[99])
+
         if p.print_queries:
             with np.printoptions(precision=3, suppress=True):
                 print(f"{n:6} : {(total_time)/(n+1):.3f} : {repr(word):17} #{vocabulary_freq[word]}: {100*ap:.3f}\t cummulative mAP:{100*(all_ap[:n].mean()):.3f}\tTop-3 p@:",
-                      precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1],  "\tRecall @end:", recall_at[-1])
-
+                      precision_at[:3]*100, "\tTop-3 IoU:", iou_of_correct[:3], "\tRecall @100:", recall_at_100[-1],  "\tRecall @end:", recall_at[-1], "Indexes")
+                sys.stdout.flush()
+        accumulated_correct.append(np.nonzero(correct)[0].tolist())
+        accumulated_queries.append(word)
+        accumulated_querie_occurence.append(vocabulary_freq[word])
+        accumulated_iou.append(iou_of_correct.tolist())
+    if n % p.save_data_freq ==0 or n == len(vocabulary)-1:
+        pickle.dump({"correct":accumulated_correct, "queries":accumulated_queries.append(word), "query_freq": accumulated_querie_occurence,"iou": accumulated_iou},open(p.save_data_path,"w"))
+        
     header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100", "Computation Time"]
     values = [f"{p.experiment_name}", f"{len(vocabulary_freq)}", f"{100*all_ap.mean():.3f}", f"{100*np.mean(precisions_at_1):.3f}",
               f"{100*np.mean(precisions_at_5):.3f}", f"{100*np.mean(precisions_at_10):.3f}",f"{100*np.mean(precisions_at_100):.3f}",
