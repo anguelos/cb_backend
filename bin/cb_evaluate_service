@@ -180,8 +180,8 @@ if __name__ == '__main__':
         accumulated_queries.append(word)
         accumulated_querie_occurence.append(vocabulary_freq[word])
         accumulated_iou.append(iou_of_correct.tolist())
-    if n % p.save_data_freq ==0 or n == len(vocabulary)-1:
-        pickle.dump({"cli_params":p,"correct":accumulated_correct, "queries":accumulated_queries.append(word), "query_freq": accumulated_querie_occurence,"iou": accumulated_iou},open(p.save_data_path,"w"))
+    if n % p.save_data_freq == 0 or n == len(vocabulary)-1:
+        pickle.dump({"cli_params":p, "correct":accumulated_correct, "queries":accumulated_queries.append(word), "query_freq": accumulated_querie_occurence,"iou": accumulated_iou},open(p.save_data_path,"wb"))
 
     header = ["Name", "Query Count", "mAP", "Accuracy", "Precision @ 5", "Precision @10", "Precision @100", "Recall @10", "Recall @100", "Computation Time"]
     values = [f"{p.experiment_name}", f"{len(vocabulary_freq)}", f"{100*all_ap.mean():.3f}", f"{100*np.mean(precisions_at_1):.3f}",
