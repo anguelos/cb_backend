@@ -85,10 +85,13 @@ def average_precision(answers, gt_per_page_rects, gt_per_page_captions, query, q
 
     possible_correct = np.cumsum(np.ones_like(correct))
     mask_possible_correct = possible_correct <= max(query_freq, correct.sum())
-    possible_correct = np.cumsum(mask_possible_correct,axis=1, dtype=np.float)
+#    print(mask_possible_correct.shape,end="")
+    possible_correct = np.cumsum(mask_possible_correct).astype(np.float)
+#    print(mask_possible_correct.shape,end="")
 
-    precision_at = np.cumsum(correct) / possible_correct
-    print("\n",possible_correct[:5], precision_at[:5], np.nonzero(precision_at)[:5])
+    recall_at = np.cumsum(correct) / possible_correct
+    precision_at = np.cumsum(correct) / np.cumsum(np.ones_like(correct))
+    #print("\n",possible_correct[:5], precision_at[:5], np.nonzero(precision_at)[:5])
 
     if sum(correct):
         average_precision = precision_at[correct].mean()
