@@ -117,7 +117,8 @@ class ImageEmbedder(nn.Module):
 
 class StringImageEmbedder(nn.Module):
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
-        super().__init__(input_channels=input_channels)
+        super().__init__()
+        self.input_channels=input_channels
         if gpp_type not in ['spp', 'tpp', 'gpp']:
             raise ValueError('Unknown pooling_type. Must be either \'gpp\', \'spp\' or \'tpp\'')
         self.resize_mode = resize_mode
