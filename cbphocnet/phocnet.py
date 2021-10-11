@@ -115,7 +115,7 @@ def resume_embedder(fname, allow_fail=True, net=None):
 #             return rectangles, embedings
 
 
-class StringImageEmbedder(ImageEmbedder):
+class StringImageEmbedder(torch.nn.Module):
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__()
         self.params = {}
