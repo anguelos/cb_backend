@@ -28,96 +28,97 @@ def resume_embedder(fname, allow_fail=True, net=None):
     return net, store_data
 
 
-class ImageEmbedder(nn.Module):
-    def __init__(self, input_channels=1):
-        super().__init__()
-        self.params = {"input_channels": input_channels}
-
-    def retrieval_distance_metric(self):
-        raise NotImplemented()
-
-    def arch_hash(self):
-        raise NotImplemented()
-
-    def save(self, fname, **kwargs):
-        store_data = {k: v for k, v in kwargs.items()}
-        store_data["class_name"] = type(self).__name__
-        store_data["contructor_params"] = self.params
-        store_data["state_dict"] = self.state_dict()
-        torch.save(store_data, fname)
-
-    def forward(self, x):
-        raise NotImplemented()
-
-    def embed_image(self, word_image: Image, device):
-        with torch.no_grad():
-            if self.params["input_channels"] == 1:
-                word_image = word_image.convert("LA")
-            else:
-                word_image = word_image.convert("RGB")
-            dataset = []
-            boxes = [[0, 0, word_image.size[0], word_image.size[1]]]
-
-            for left, top, right, bottom in boxes:
-                word_image = resize_word(word_image, fixed_size=self.fixed_size, pad_mode=self.resize_mode)
-                if word_image.mode == "LA":
-                    word_tensor = torch.from_numpy(np.array(word_image))
-                    if len(word_tensor.size()) == 2:
-                        word_tensor = word_tensor.unsqueeze(dim=2)
-                    word_tensor = word_tensor.transpose(0, 2).transpose(1, 2).to(device)
-                    word_tensor = word_tensor[:1, :, :]
-                else:  # mode == "RGB"
-                    word_tensor = torch.from_numpy(np.array(word_image)).transpose(0, 2).transpose(1, 2).to(device)
-                dataset.append((word_tensor.float() / 255., torch.tensor([left, top, right, bottom])))
-            self.to(device)
-            self.train(False)
-            dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, drop_last=True)
-            embedings = []
-            for data, boxes in dataloader:
-                embedings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
-            return embedings[0]
-
-
-    def embed_strings(self, words):
-        raise NotImplementedError()  #  Not every image embedder can embed strings
-
-
-    def embed_rectangles(self, img: Image, ltrb: np.array, device: str, batch_size: int):
-        with torch.no_grad():
-            if self.params["input_channels"] == 1:
-                page = img.convert("LA")
-            else:
-                page = img.convert("RGB")
-            dataset = []
-            boxes = ltrb.tolist()
-            for left, top, right, bottom in boxes:
-                word_img = page.crop((left, top, right, bottom))
-                word_img = resize_word(word_img, fixed_size=self.fixed_size, pad_mode=self.resize_mode)
-                if word_img.mode == "LA":
-                    word_tensor = torch.from_numpy(np.array(word_img))
-                    if len(word_tensor.size()) == 2:
-                        word_tensor = word_tensor.unsqueeze(dim=2)
-                    word_tensor = word_tensor.transpose(0, 2).transpose(1, 2).to(device)
-                    word_tensor = word_tensor[:1, :, :]
-                else:  # mode == "RGB"
-                    word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device)
-                dataset.append((word_tensor.float() / 255., torch.tensor([left, top, right, bottom])))
-            self.to(device)
-            self.train(False)
-            dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-            embedings = []
-            rectangles = []
-            for data, boxes in dataloader:
-                embedings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
-                rectangles.append(boxes.numpy())
-            embedings = np.concatenate(embedings, axis=0)
-            rectangles = np.concatenate(rectangles, axis=0)
-            return rectangles, embedings
+# class ImageEmbedder(nn.Module):
+#     def __init__(self, input_channels=1):
+#         super().__init__()
+#         self.params = {"input_channels": input_channels}
+#
+#     def retrieval_distance_metric(self):
+#         raise NotImplemented()
+#
+#     def arch_hash(self):
+#         raise NotImplemented()
+#
+#     def save(self, fname, **kwargs):
+#         store_data = {k: v for k, v in kwargs.items()}
+#         store_data["class_name"] = type(self).__name__
+#         store_data["contructor_params"] = self.params
+#         store_data["state_dict"] = self.state_dict()
+#         torch.save(store_data, fname)
+#
+#     def forward(self, x):
+#         raise NotImplemented()
+#
+#     def embed_image(self, word_image: Image, device):
+#         with torch.no_grad():
+#             if self.params["input_channels"] == 1:
+#                 word_image = word_image.convert("LA")
+#             else:
+#                 word_image = word_image.convert("RGB")
+#             dataset = []
+#             boxes = [[0, 0, word_image.size[0], word_image.size[1]]]
+#
+#             for left, top, right, bottom in boxes:
+#                 word_image = resize_word(word_image, fixed_size=self.fixed_size, pad_mode=self.resize_mode)
+#                 if word_image.mode == "LA":
+#                     word_tensor = torch.from_numpy(np.array(word_image))
+#                     if len(word_tensor.size()) == 2:
+#                         word_tensor = word_tensor.unsqueeze(dim=2)
+#                     word_tensor = word_tensor.transpose(0, 2).transpose(1, 2).to(device)
+#                     word_tensor = word_tensor[:1, :, :]
+#                 else:  # mode == "RGB"
+#                     word_tensor = torch.from_numpy(np.array(word_image)).transpose(0, 2).transpose(1, 2).to(device)
+#                 dataset.append((word_tensor.float() / 255., torch.tensor([left, top, right, bottom])))
+#             self.to(device)
+#             self.train(False)
+#             dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False, drop_last=True)
+#             embedings = []
+#             for data, boxes in dataloader:
+#                 embedings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
+#             return embedings[0]
+#
+#
+#     def embed_strings(self, words):
+#         raise NotImplementedError()  #  Not every image embedder can embed strings
+#
+#
+#     def embed_rectangles(self, img: Image, ltrb: np.array, device: str, batch_size: int):
+#         with torch.no_grad():
+#             if self.params["input_channels"] == 1:
+#                 page = img.convert("LA")
+#             else:
+#                 page = img.convert("RGB")
+#             dataset = []
+#             boxes = ltrb.tolist()
+#             for left, top, right, bottom in boxes:
+#                 word_img = page.crop((left, top, right, bottom))
+#                 word_img = resize_word(word_img, fixed_size=self.fixed_size, pad_mode=self.resize_mode)
+#                 if word_img.mode == "LA":
+#                     word_tensor = torch.from_numpy(np.array(word_img))
+#                     if len(word_tensor.size()) == 2:
+#                         word_tensor = word_tensor.unsqueeze(dim=2)
+#                     word_tensor = word_tensor.transpose(0, 2).transpose(1, 2).to(device)
+#                     word_tensor = word_tensor[:1, :, :]
+#                 else:  # mode == "RGB"
+#                     word_tensor = torch.from_numpy(np.array(word_img)).transpose(0, 2).transpose(1, 2).to(device)
+#                 dataset.append((word_tensor.float() / 255., torch.tensor([left, top, right, bottom])))
+#             self.to(device)
+#             self.train(False)
+#             dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+#             embedings = []
+#             rectangles = []
+#             for data, boxes in dataloader:
+#                 embedings.append(torch.sigmoid(self(data)).detach().cpu().numpy())
+#                 rectangles.append(boxes.numpy())
+#             embedings = np.concatenate(embedings, axis=0)
+#             rectangles = np.concatenate(rectangles, axis=0)
+#             return rectangles, embedings
 
 
 class StringImageEmbedder(ImageEmbedder):
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__()
+        self.params = {}
         self.input_channels=input_channels
         if gpp_type not in ['spp', 'tpp', 'gpp']:
             raise ValueError('Unknown pooling_type. Must be either \'gpp\', \'spp\' or \'tpp\'')
@@ -157,6 +158,7 @@ class StringImageEmbedder(ImageEmbedder):
         else:
             word_img = torch.from_numpy(np.array(word_image.convert("RGB"))).float().to(device)
         word_img = word_img.transpose(0, 2).transpose(1, 2) / 255.
+        torch.save(word_img, "/tmp/word.pickle")
         dl = torch.utils.data.DataLoader([[word_img, 0]]) # we use a data loader because under some conditions raw tensors can cause a memory leak.
         embeddings = []
         for data, _ in dl:
