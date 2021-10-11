@@ -53,7 +53,7 @@ def compile_page(net: torch.nn.Module, page_path:str, words_path:str, batch_size
     """
     img = Image.open(page_path)
     if words_path.endswith(".json"):
-        rectangles_ltrb = np.array(json.load(open(words_path,"r"))["rectangles_ltrb"], dtype=np.int32)
+        rectangles_ltrb = np.array(json.load(open(words_path, "r"))["rectangles_ltrb"], dtype=np.int32)
     elif words_path.endswith(".pickle"):
         rectangles_ltrb = pickle.load(open(words_path, "rb"))
     else:

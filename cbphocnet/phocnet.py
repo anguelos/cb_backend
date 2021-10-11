@@ -115,7 +115,7 @@ class ImageEmbedder(nn.Module):
             return rectangles, embedings
 
 
-class StringImageEmbedder(nn.Module):
+class StringImageEmbedder(ImageEmbedder):
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__()
         self.input_channels=input_channels
