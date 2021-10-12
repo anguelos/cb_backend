@@ -1,6 +1,6 @@
 ## Create a Queue to be run on a single computation node
 
-### 1. Create a Queue and assign it the Chudenice archive (about a day)
+### 1. Create a Queue and assign it the Chudenice archive (a few hours)
 ```bash
 WORKING_DIR=/data/storage/new_root
 QUEUE_NAME=queue_cb92
@@ -12,7 +12,7 @@ IDX_ROOT="$WORKING_DIR"/data/"$QUEUE_NAME"_idx
 mkdir -p "$WORKING_DIR"/"$QUEUE_NAME"/public/chronicle/
 mkdir -p "$IDX_ROOT"
 
-cp -Rp "$QUEUE_SRC" "$QUEUE_DST"  # this can take long, ebevn a day
+cp -Rp "$QUEUE_SRC" "$QUEUE_DST"  # this can take long everything else is instant
 ```
 
 ### 2. Create/Update Makefiles for Queue (few seconds)
