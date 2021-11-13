@@ -151,6 +151,7 @@ class Embedder(nn.Module):
             return rectangles, embedings
 
 
+
 class PHOCNet(Embedder):
     def __init__(self, unigrams, unigram_pyramids, fixed_size=None, input_channels=1, gpp_type='spp', pooling_levels=3, pool_type='max_pool', resize_mode="padcropscale"):
         super().__init__(unigrams=unigrams, unigram_pyramids=unigram_pyramids, fixed_size=fixed_size, input_channels=input_channels,gpp_type=gpp_type,pooling_levels=pooling_levels, pool_type='max_pool')
