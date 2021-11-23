@@ -141,10 +141,10 @@ if __name__ == "__main__":
     else:
         shards = {}
         for shard_n in range(makefile_shards):
-            shard_indexes = [all_indexes[n] for n in range(len(all_indexes)) if n % makefile_shards==shard_n]
+            shard_indexes = [all_indexes[n] for n in range(len(all_indexes)) if n % makefile_shards == shard_n]
             shards[f"{p['archive_location']}/makefile_{shard_n}_of_{makefile_shards}.mak"] = shard_indexes
     for makefile_name, indexes in shards.items():
-        shard_makefile_str = "ALL: " + " ".join(all_indexes) + "\n\n" + total_makefile_str  # Todo (anguelos) remove redundant entries
+        shard_makefile_str = "ALL: " + " ".join(indexes) + "\n\n" + total_makefile_str  # Todo (anguelos) remove redundant entries
         if p["add_clean"]:
-            shard_makefile_str += f"\nclean:\n\trm {' '.join(all_indexes)}\n\n"
+            shard_makefile_str += f"\nclean:\n\trm {' '.join(indexes)}\n\n"
         open(makefile_name, "w").write(shard_makefile_str)
