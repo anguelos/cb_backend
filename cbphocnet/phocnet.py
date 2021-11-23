@@ -150,7 +150,7 @@ class Embedder(nn.Module):
                 embedings = np.concatenate(embedings, axis=0)
                 rectangles = np.concatenate(rectangles, axis=0)
             else:
-                embedding_size = self.embed_strings(["hello"]).size(1) #  TODO (anguelos) add a caching getter for this
+                embedding_size = self.embed_strings(["hello"]).shape[1] #  TODO (anguelos) add a caching getter for this
                 return np.zeros([0, 4]), np.zeros([0, embedding_size])
             return rectangles, embedings
 
