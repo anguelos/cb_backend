@@ -23,7 +23,7 @@ def image_result(results, item_count, document_root, pad=4):
     cropped_images = []
     for item in range(item_count):
         image_glob = f"{document_root}/{results['rectangles'][item][0]}/*{int(results['rectangles'][item][1]):04}*jp2"
-        print("glob:", image_glob, end="")
+        print("glob:", image_glob)
         img = Image.open(glob.glob(image_glob)[0])
         print(results['rectangles'][item][2:6])
         img = img.crop(results['rectangles'][item][2:6])
