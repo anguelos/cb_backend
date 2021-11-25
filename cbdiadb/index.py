@@ -9,6 +9,7 @@ from typing import Tuple, List
 from .hinttypes import t_filename, t_indexreply_ind, t_rect, t_optional_tensor, t_image, t_ctx
 
 import os
+import tqdm
 
 
 class AbstractIndex(object):
@@ -227,7 +228,9 @@ class NumpyIndex(AbstractIndex):
     def load_documents(cls, document_pickles, document_root, net, embedding_dtype=np.double):
         all_t = time.time()
         all_chronicles = []
-        for filename in document_pickles:
+        pbar = tqdm.tqdm(document_pickles)
+        for filename in pbar:
+            pbar.set_description(f"Reading {filename}")
             with open(filename, "rb") as fd:
                 all_chronicles.append(pickle.load(fd))
         idx = cls(nb_embeddings=1, embedding_size=1, nb_documents=len(document_pickles), metric=net.retrieval_distance_metric(), embedding_dtype=embedding_dtype)
