@@ -1,43 +1,24 @@
-Train components
+# CB Backend
+#### Manuscript text image retrieval
 
-```bash
-PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_train_component_classifier -binary_images ./data/annotated/*/*bin.png -annotations ./data/annotated/*/*.gt.json
-```
 
-Create proposals
-```bash
-PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_propose_words -prob_images ./data/fake_db/*/*bin.png -target_postfix .words.json
-```
+This repository contains a full toolchain with all the tools needed to implement the backend for a large scale text image retrival system.
 
-Create proposals in parallel
-```bash
-export PYTHONPATH="./:./thirdparty/iunets"
-ls ./data/fake_db/blovice/*.bin.png | parallel -j 4 ./bin/cb_propose_words -prob_images {} -device cpu
-```
 
-Evaluate proposals
-```bash
-PYTHONPATH="./:./thirdparty/iunets" ./bin/cb_evaluate_proposals.py -proposals ./data/annotated/blovice/*words.json -gt ./data/annotated/blovice/*gt.json -iou_threshold=.5
-```
+![Architecture](docs/diagram.png)
+---------------------------------------------------------------------------------
+Software consists of three computation stages:
+#### 1. Machine learning
+This Module is creates the neural networks needed for computation and adapts them to annotated data. The outcome of this stage is trained pytorch neural networks. 
+This stage should re-run everytime there are new annotated data or new training parameters.
+#### 2. Offline computation
+This stage creates the indexes needed for image retrieval it is computationally expensive and its outcome must be cached on the filesystem. This should be constantly running updating the indexes every time the machine learning models are changed. The outcome of this stage id .pickle files containing all the precomputed indexes.      
+#### 3. Online computation
+This stage performs the searching in real-time. The outcome is served as a web-service. Queries can be QBE(Query by example), QBS(Query by string), and QBR (Query by reference).
+And the answers are a list of relevant locations on pages. The format of references and answers follows the [Porta Fontium](https://www.portafontium.eu/?language=en)
 
-Train Phocnet
-```bash
-mkdir -p ./models
-PYTHONPATH="./" ./bin/cb_train_phocnet -batch_size 1 -pseudo_batch_size 10 -img_glob './data/fake_db/blovice*/*jp2' -gt_glob './data/fake_db/blovice*/*gt.json' -epochs 1000
-```
+---------------------------------------------------------------------------------
 
-Embed data
-```bash
-export PYTHONPATH="./:./thirdparty/iunets"
-mkdir -p './data/compiled_fake_db/
-./bin/cb_embed_proposal -phocnet ./models/phocnet_0x0.pt  
-```
-
-RND score NMS Recall Rate
--------------------------
-THR          | RLSA        | NMS IOU |PROPOSALS |R@50 |R@75 |R@90
--------------|-------------|---------|----------|--------|-------|-----|
-128          |0,4,8,16     |75%      | 1064784  | 80.5 % | 43.9 %| 6.4%|
-128,224      |0,4,8,16     |90%      | 1121611  | 81.0 % | 45.9 %| 6.9%|
-32,64,128,224|0,4,8,16     |75%      | 1621626  | 81.0 % | 43.1 %| 5.6%|
-128          |0,2,4,6,12,18,24| 75%| 683156     | 80.4 % | 43.4% | 6.2%|
+[Funded by:](https://anguelos.github.io/czeck_bavaria/)
+![page](docs/eu_czeck_bavaria_logo.png)
+[Project page:](https://anguelos.github.io/czeck_bavaria/)
